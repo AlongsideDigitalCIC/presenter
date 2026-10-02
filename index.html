@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Alongside Digital - Presenter</title>
+    <meta name="title" content="Alongside Digital - Presenter" />
+    <meta name="description" content="Presenter is a modern, lightweight, and free church presentation software. Seamlessly manage songs, Bibles, liturgy, media, and videos for your worship services." />
+    <meta name="keywords" content="church presentation software, free worship software, church media software, lyric projection, open source church software" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://presenter-cps.co.uk/" />
+    <meta property="og:title" content="Alongside Digital - Presenter" />
+    <meta property="og:description" content="Presenter is a modern, lightweight, and free church presentation software. Seamlessly manage songs, Bibles, liturgy, media, and videos for your worship services." />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://presenter-cps.co.uk/" />
+    <meta property="twitter:title" content="Alongside Digital - Presenter" />
+    <meta property="twitter:description" content="Presenter is a modern, lightweight, and free church presentation software. Seamlessly manage songs, Bibles, liturgy, media, and videos for your worship services." />
+    
+    <!-- Canonical Link -->
+    <link rel="canonical" href="https://presenter-cps.co.uk/" />
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Presenter",
+      "operatingSystem": "Web, Windows, macOS",
+      "applicationCategory": "MultimediaApplication",
+      "description": "A modern, lightweight presentation software designed for churches to seamlessly manage songs, bibles, liturgy, and media.",
+      "url": "https://presenter-cps.co.uk/",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "GBP"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <!-- A hidden form for Netlify to detect -->
+    <form name="feedback" data-netlify="true" netlify-honeypot="bot-field" hidden>
+      <input type="text" name="name" />
+      <input type="email" name="email" />
+      <select name="type">
+        <option value="bug">Bug</option>
+        <option value="feature">Feature Request</option>
+        <option value="other">Something Else</option>
+      </select>
+      <textarea name="message"></textarea>
+    </form>
+
+    <script>
+      window.deferredPWAInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.deferredPWAInstallPrompt = e;
+      });
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

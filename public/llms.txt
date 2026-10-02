@@ -1,0 +1,18 @@
+# Alongside Digital - Presenter
+
+> Beautiful Worship. Effortless Control.
+
+Presenter is a modern, lightweight presentation software designed to keep your focus on what matters. Seamlessly manage songs, bibles, liturgy, media, and more.
+
+## Core Features
+- Songs: Add your own custom songs or seamlessly import from Song Select. Organise and build your repertoire.
+- Images & Presentations: Use presentation slides natively as images, or upload PDFs to display content perfectly on screen.
+- Bible Integration: Instantly add bible chapters and verses directly from YouVersion, or use your own local offline Bibles.
+- Liturgy Management: Add and manage liturgy dynamically. Assign colours to easily indicate who should be speaking.
+- Videos: Add local videos, YouTube, Vimeo, and other web videos directly into your presentation flow.
+- Local Music: Add your local music collection to play walk-in music, backing tracks, or ambient soundscapes.
+
+## Important Links
+- [App Application](https://presenter-cps.co.uk/app)
+- [Documentation](https://presenter-cps.co.uk/docs)
+- [Homepage](https://presenter-cps.co.uk)
