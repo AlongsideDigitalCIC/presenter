@@ -1,3 +1,4 @@
+use tauri::Manager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
@@ -80,6 +81,18 @@ pub fn run() {
                 )?;
             }
             
+            
+            let resource_dir = app.path().resource_dir().unwrap().join("dist");
+            let static_route = warp::path("presenter").and(warp::fs::dir(resource_dir));
+            
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async move {
+                    println!("Static HTTP server running on http://0.0.0.0:5178/presenter");
+                    warp::serve(static_route).run(([0, 0, 0, 0], 5178)).await;
+                });
+            });
+
             let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
             let clients_filter = warp::any().map(move || clients.clone());
             
