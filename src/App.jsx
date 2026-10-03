@@ -949,6 +949,8 @@ function App() {
                        height: 720,
                        decorations: false,
                        alwaysOnTop: false,
+                        fullscreen: false,
+                        maximized: true,
                        resizable: true,
                      };
                      
@@ -964,6 +966,10 @@ function App() {
                      }
                      
                      const projWin = new WebviewWindow('projector', winOptions);
+                     projWin.once('tauri://created', () => {
+                         projWin.maximize();
+                         if (winOptions.fullscreen) projWin.setFullscreen(true);
+                     });
                      projectorWindowRef.current = projWin;
                      return true;
                  } else {

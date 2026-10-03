@@ -359,7 +359,7 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
         </button>
       </div>
 
-      {error && <div className="text-red-400 font-medium text-xs text-center mt-1 bg-red-950/50 p-3 rounded-lg border border-red-900/50">{error}</div>}
+      {error && <div className="text-red-700 font-medium text-xs text-center mt-1 bg-red-50 p-3 rounded-lg border border-red-200 shadow-sm">{error}</div>}
 
       {/* ─── Browse-Style Picker ─── */}
       <div className="mt-1 relative" ref={browserRef}>

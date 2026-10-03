@@ -59,6 +59,16 @@ const LoadingFallback = () => (
   </div>
 );
 
+
+// Force unregister service workers in Tauri to prevent stale assets
+if (window.__TAURI__ && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    for(let registration of registrations) {
+      registration.unregister();
+    }
+  });
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Suspense fallback={<LoadingFallback />}>
