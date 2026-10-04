@@ -82,7 +82,7 @@ pub fn run() {
             }
             
             
-            let resource_dir = app.path().resource_dir().unwrap().join("dist");
+            let resource_dir = app.path().resolve("../dist", tauri::path::BaseDirectory::Resource).unwrap_or_else(|_| std::env::current_dir().unwrap().join("dist"));
             let cors = warp::cors().allow_any_origin().allow_methods(vec!["GET", "POST", "OPTIONS"]).allow_headers(vec!["Content-Type"]);
             let static_route = warp::fs::dir(resource_dir).with(cors);
             
