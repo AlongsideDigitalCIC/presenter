@@ -83,12 +83,13 @@ pub fn run() {
             
             
             let resource_dir = app.path().resource_dir().unwrap().join("dist");
-            let static_route = warp::path("presenter").and(warp::fs::dir(resource_dir));
+            let cors = warp::cors().allow_any_origin().allow_methods(vec!["GET", "POST", "OPTIONS"]).allow_headers(vec!["Content-Type"]);
+            let static_route = warp::fs::dir(resource_dir).with(cors);
             
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async move {
-                    println!("Static HTTP server running on http://0.0.0.0:5178/presenter");
+                    println!("Static HTTP server running on http://0.0.0.0:5178/");
                     warp::serve(static_route).run(([0, 0, 0, 0], 5178)).await;
                 });
             });
