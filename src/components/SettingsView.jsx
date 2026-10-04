@@ -55,11 +55,11 @@ export default function SettingsView({ roomId, churchName, setChurchName, displa
   }, []);
 
   // Compute URLs
-  let defaultBase = 'http://localhost:5178/presenter/';
-    if (urlPref === 'ip' && localIp) defaultBase = `http://${localIp}:5178/presenter/`;
-    else if (urlPref === 'hostname' && localHostname) defaultBase = `http://${localHostname}:5178/presenter/`;
-    else if (localHostname) defaultBase = `http://${localHostname}:5178/presenter/`;
-    else if (localIp) defaultBase = `http://${localIp}:5178/presenter/`;
+  let defaultBase = 'http://localhost:5178/';
+    if (urlPref === 'ip' && localIp) defaultBase = `http://${localIp}:5178/`;
+    else if (urlPref === 'hostname' && localHostname) defaultBase = `http://${localHostname}:5178/`;
+    else if (localHostname) defaultBase = `http://${localHostname}:5178/`;
+    else if (localIp) defaultBase = `http://${localIp}:5178/`;
   const base = customBaseUrl || defaultBase;
   const baseWithSlash = base.endsWith('/') ? base : base + '/';
   const liveUrl = baseWithSlash + '?network=true' + (roomId ? '&room=' + roomId : '');
@@ -216,13 +216,13 @@ export default function SettingsView({ roomId, churchName, setChurchName, displa
                       <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Detected Network Addresses</div>
                       {localHostname && (
                           <div className="flex items-center gap-2">
-                             <span className="text-xs font-mono text-[#1C355E] flex-1">http://{localHostname}:5178/presenter/</span>
+                             <span className="text-xs font-mono text-[#1C355E] flex-1">http://{localHostname}:5178/</span>
                              <button onClick={() => { setUrlPref('hostname'); setCustomBaseUrl(''); import('idb-keyval').then(({set, del}) => { set('presenter_url_pref', 'hostname'); del('presenter_custom_base_url'); }); }} className="px-2 py-1 text-[9px] bg-[#3D7B8C]/10 text-[#3D7B8C] font-bold uppercase rounded-md hover:bg-[#3D7B8C]/20">Use Hostname</button>
                           </div>
                       )}
                       {localIp && (
                           <div className="flex items-center gap-2 mt-1">
-                             <span className="text-xs font-mono text-neutral-500 flex-1">http://{localIp}:5178/presenter/</span>
+                             <span className="text-xs font-mono text-neutral-500 flex-1">http://{localIp}:5178/</span>
                              <button onClick={() => { setUrlPref('ip'); setCustomBaseUrl(''); import('idb-keyval').then(({set, del}) => { set('presenter_url_pref', 'ip'); del('presenter_custom_base_url'); }); }} className="px-2 py-1 text-[9px] bg-neutral-200 text-neutral-600 font-bold uppercase rounded-md hover:bg-neutral-300">Use IP</button>
                           </div>
                       )}
