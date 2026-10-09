@@ -2609,7 +2609,7 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 
 [[package]]
 name = "presenter"
-version = "0.1.6"
+version = "0.1.8"
 dependencies = [
  "futures",
  "futures-util",
