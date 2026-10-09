@@ -1,3 +1,4 @@
+import { isTauri } from './env.js';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { convertPdfToImages } from './pdfConverter';
 
@@ -57,7 +58,7 @@ export async function reResolveMedia(items, library) {
              for (let img of images) {
                  img.thumbnail = await generateThumbnail(img.url);
              }
-             const url = (window.__TAURI__ && fileHandle.path) ? convertFileSrc(fileHandle.path) : URL.createObjectURL(file);
+             const url = (isTauri() && fileHandle.path) ? convertFileSrc(fileHandle.path) : URL.createObjectURL(file);
              newItems[i] = { ...item, fileHandle, images, url };
          } else {
              let subDir = item.handle || item.fileHandle;
@@ -89,8 +90,8 @@ export async function reResolveMedia(items, library) {
                    const file = await fileH.getFile();
                    const tempUrl = URL.createObjectURL(file);
                    const thumbnail = await generateThumbnail(tempUrl);
-                   if (window.__TAURI__ && fileH.path) URL.revokeObjectURL(tempUrl);
-                   const url = (window.__TAURI__ && fileH.path) ? convertFileSrc(fileH.path) : tempUrl;
+                   if (isTauri() && fileH.path) URL.revokeObjectURL(tempUrl);
+                   const url = (isTauri() && fileH.path) ? convertFileSrc(fileH.path) : tempUrl;
                    resolvedImages.push({ url, thumbnail });
                 }
              }
@@ -113,8 +114,8 @@ export async function reResolveMedia(items, library) {
          const file = await fileHandle.getFile();
          const tempUrl = URL.createObjectURL(file);
          const thumbnail = item.type === 'image' ? await generateThumbnail(tempUrl) : null;
-         if (window.__TAURI__ && fileHandle.path) URL.revokeObjectURL(tempUrl);
-         const url = (window.__TAURI__ && fileHandle.path) ? convertFileSrc(fileHandle.path) : tempUrl;
+         if (isTauri() && fileHandle.path) URL.revokeObjectURL(tempUrl);
+         const url = (isTauri() && fileHandle.path) ? convertFileSrc(fileHandle.path) : tempUrl;
          newItems[i] = { ...item, url, fileHandle, images: item.type === 'image' ? [{ url, thumbnail }] : undefined, thumbnail };
       }
     } catch (err) {

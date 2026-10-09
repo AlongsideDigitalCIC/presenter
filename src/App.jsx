@@ -1,3 +1,4 @@
+import { isTauri } from './utils/env.js';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Peer } from 'peerjs'
@@ -124,8 +125,7 @@ function App() {
   const [remoteControlRoom, setRemoteControlRoom] = useState(() => {
       const remoteCode = params.get('remoteControl');
       if (remoteCode) return remoteCode;
-      const isTauri = window.__TAURI__ || window.__TAURI_INTERNALS__ || window.location.hostname === 'tauri.localhost' || window.location.protocol === 'tauri:';
-      if (!isTauri && !params.get('network') && !params.get('projector')) {
+      if (!isTauri() && !params.get('network') && !params.get('projector')) {
           const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
           if (!isLocalhost || window.location.pathname.includes('app')) {
               return 'default';

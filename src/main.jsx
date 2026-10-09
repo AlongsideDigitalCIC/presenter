@@ -1,3 +1,4 @@
+import { isTauri } from './utils/env.js';
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -61,7 +62,7 @@ const LoadingFallback = () => (
 
 
 // Force unregister service workers in Tauri to prevent stale assets
-if (window.__TAURI__ && 'serviceWorker' in navigator) {
+if (isTauri() && 'serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(function(registrations) {
     for(let registration of registrations) {
       registration.unregister();
