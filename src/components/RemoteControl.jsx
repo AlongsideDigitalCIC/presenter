@@ -205,8 +205,12 @@ export default function RemoteControl({ roomId }) {
                              }`}
                           >
                              <div className="flex flex-col items-center gap-1">
-                                <ImgIcon size={20} className={isActive ? 'opacity-100' : 'opacity-50'} />
-                                <span className="text-[9px] font-bold tracking-widest uppercase">Slide {idx + 1}</span>
+                                {payload.itemThumbnails?.[idx] ? (
+                                   <img src={payload.itemThumbnails[idx]} alt={`Slide ${idx + 1}`} className={`absolute inset-0 w-full h-full object-cover transition-opacity ${isActive ? 'opacity-100' : 'opacity-60'}`} />
+                                ) : (
+                                   <ImgIcon size={20} className={`z-10 ${isActive ? 'opacity-100' : 'opacity-50'}`} />
+                                )}
+                                <span className={`text-[9px] font-bold tracking-widest uppercase z-10 ${payload.itemThumbnails?.[idx] ? 'absolute bottom-1 right-1 bg-black/60 px-1 rounded' : ''}`}>Slide {idx + 1}</span>
                              </div>
                           </button>
                        );

@@ -5,6 +5,25 @@ export async function verifyPermission(fileHandle, readWrite = true) {
   return true; // Always return true for Tauri!
 }
 
+function generateThumbnail(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxW = 160; // Tiny thumbnail for remote control grid
+      const scale = Math.min(1, maxW / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.5));
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
 export async function reResolveMedia(items, library) {
   if (!library || !items) return items;
   const newItems = [...items];
@@ -30,6 +49,9 @@ export async function reResolveMedia(items, library) {
              }
              const file = await fileHandle.getFile();
              const images = await convertPdfToImages(file, item.selectedIndices);
+             for (let img of images) {
+                 img.thumbnail = await generateThumbnail(img.url);
+             }
              const url = (window.__TAURI__ && fileHandle.path) ? convertFileSrc(fileHandle.path) : URL.createObjectURL(file);
              newItems[i] = { ...item, fileHandle, images, url };
          } else {
@@ -57,11 +79,11 @@ export async function reResolveMedia(items, library) {
              
              const resolvedImages = [];
              for (let j = 0; j < imgArray.length; j++) {
-                // Keep if there's no filter, OR if this original index is in the selectedIndices
                 if (!item.selectedIndices || item.selectedIndices.includes(imgArray[j].originalIndex)) {
                    const fileH = imgArray[j].fileHandle;
                    const url = (window.__TAURI__ && fileH.path) ? convertFileSrc(fileH.path) : URL.createObjectURL(await fileH.getFile());
-                   resolvedImages.push({ url });
+                   const thumbnail = await generateThumbnail(url);
+                   resolvedImages.push({ url, thumbnail });
                 }
              }
              newItems[i] = { ...item, images: resolvedImages };
@@ -81,7 +103,8 @@ export async function reResolveMedia(items, library) {
              }
          }
          const url = (window.__TAURI__ && fileHandle.path) ? convertFileSrc(fileHandle.path) : URL.createObjectURL(await fileHandle.getFile());
-         newItems[i] = { ...item, url, fileHandle, images: item.type === 'image' ? [{ url }] : undefined };
+         const thumbnail = item.type === 'image' ? await generateThumbnail(url) : null;
+         newItems[i] = { ...item, url, fileHandle, images: item.type === 'image' ? [{ url, thumbnail }] : undefined, thumbnail };
       }
     } catch (err) {
       console.warn(`Failed to re-resolve media: ${item.filename}`, err);

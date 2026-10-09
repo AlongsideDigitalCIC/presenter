@@ -253,7 +253,6 @@ function App() {
                       const minItems = serviceItemsRef.current.map(i => ({ id: i.id, type: i.type, title: i.title, filename: i.filename }));
                       const minPayload = { ...livePayloadRef.current };
                         delete minPayload.liveItem;
-                        delete minPayload.itemSlides;
                         ws.send(JSON.stringify({ type: 'state', payload: minPayload, serviceItems: minItems }));
                         setTriggerMediaSync(prev => prev + 1);
                    }
@@ -399,7 +398,8 @@ function App() {
        stickyAudioUrl: stickyAudioItem?.url || null,
        slideIndex: liveSlideIndex,
        itemSlides: liveItem?.slides || null,
-       itemImagesCount: liveItem?.images?.length || 0
+       itemImagesCount: liveItem?.images?.length || 0,
+       itemThumbnails: liveItem?.images?.map(img => img.thumbnail).filter(Boolean) || null
     };
 
     // Populate content if we have a LIVE selection (Locked to Service Flow)
@@ -458,7 +458,6 @@ function App() {
       // For network broadcast, retain original BLOB URL strings to act as unique cache keys on the follower.
       const networkPayload = { ...payload };
       delete networkPayload.liveItem;
-      delete networkPayload.itemSlides;
       // Blobs retained to avoid standby state dropping
       
       networkPayload.isNetworkViewer = true; // Mark specifically for phone viewers
