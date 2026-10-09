@@ -81,10 +81,34 @@ pub fn run() {
                 )?;
             }
             
+            let mut resource_dir = app.path().resolve("../dist", tauri::path::BaseDirectory::Resource).unwrap_or_else(|_| std::env::current_dir().unwrap().join("dist"));
             
-            let resource_dir = app.path().resolve("../dist", tauri::path::BaseDirectory::Resource).unwrap_or_else(|_| std::env::current_dir().unwrap().join("dist"));
+            if !resource_dir.exists() {
+                if let Ok(exe_path) = std::env::current_exe() {
+                    if let Some(exe_dir) = exe_path.parent() {
+                        let candidates = vec![
+                            exe_dir.join("dist"),
+                            exe_dir.join("_up_").join("dist"),
+                            exe_dir.join("resources").join("dist"),
+                            exe_dir.join("resources").join("_up_").join("dist"),
+                            std::env::current_dir().unwrap_or_default().join("dist"),
+                        ];
+                        for c in candidates {
+                            if c.exists() && c.join("index.html").exists() {
+                                resource_dir = c;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
             let cors = warp::cors().allow_any_origin().allow_methods(vec!["GET", "POST", "OPTIONS"]).allow_headers(vec!["Content-Type"]);
-            let static_route = warp::fs::dir(resource_dir).with(cors);
+            
+            // Serve static files, and fallback to index.html for SPA routing
+            let static_route = warp::fs::dir(resource_dir.clone())
+                .or(warp::fs::file(resource_dir.join("index.html")))
+                .with(cors);
             
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
