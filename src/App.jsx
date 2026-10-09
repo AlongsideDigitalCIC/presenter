@@ -227,6 +227,7 @@ function App() {
   // Shouts a signal heavily tying the lifecycle of popups to this exact dashboard instance. 
   // If we refresh, popups must reboot to maintain Chrome Blob access scopes.
   useEffect(() => {
+     if (isProjectorView || isNetworkView || remoteControlRoom) return;
      const bc = new BroadcastChannel('presenter-projector-hub');
      bc.postMessage({ type: 'master-reboot' });
      bc.close();
@@ -244,7 +245,7 @@ function App() {
 
   // Local WebSocket Master Initialization
   useEffect(() => {
-    if (isProjectorView || isNetworkView) return;
+    if (isProjectorView || isNetworkView || remoteControlRoom) return;
     
     let reconnectTimeout;
     const connect = () => {
@@ -385,6 +386,7 @@ function App() {
 
   // Projection Engine Compiler
   useEffect(() => {
+    if (isProjectorView || isNetworkView || remoteControlRoom) return;
     const payload = {
        isLive,
        isBlackScreen,

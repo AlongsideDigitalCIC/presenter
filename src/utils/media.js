@@ -9,7 +9,9 @@ export async function verifyPermission(fileHandle, readWrite = true) {
 function generateThumbnail(url) {
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = "Anonymous";
+    if (url.startsWith('http')) {
+      img.crossOrigin = "Anonymous";
+    }
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
