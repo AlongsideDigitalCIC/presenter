@@ -1,0 +1,1 @@
+const WebSocket = require('ws'); const ws = new WebSocket('ws://127.0.0.1:5179'); ws.on('open', () = 'request_state'}))); ws.on('message', data = if (data instanceof Buffer) return; console.log(data.toString()); ws.close(); });  

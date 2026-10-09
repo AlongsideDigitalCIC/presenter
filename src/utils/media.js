@@ -10,14 +10,19 @@ function generateThumbnail(url) {
     const img = new Image();
     img.crossOrigin = "Anonymous";
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const maxW = 160; // Tiny thumbnail for remote control grid
-      const scale = Math.min(1, maxW / img.width);
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.5));
+      try {
+        const canvas = document.createElement('canvas');
+        const maxW = 160; // Tiny thumbnail for remote control grid
+        const scale = Math.min(1, maxW / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.5));
+      } catch (e) {
+        console.warn("Thumbnail generation failed:", e);
+        resolve(null);
+      }
     };
     img.onerror = () => resolve(null);
     img.src = url;
@@ -81,8 +86,11 @@ export async function reResolveMedia(items, library) {
              for (let j = 0; j < imgArray.length; j++) {
                 if (!item.selectedIndices || item.selectedIndices.includes(imgArray[j].originalIndex)) {
                    const fileH = imgArray[j].fileHandle;
-                   const url = (window.__TAURI__ && fileH.path) ? convertFileSrc(fileH.path) : URL.createObjectURL(await fileH.getFile());
-                   const thumbnail = await generateThumbnail(url);
+                   const file = await fileH.getFile();
+                   const tempUrl = URL.createObjectURL(file);
+                   const thumbnail = await generateThumbnail(tempUrl);
+                   if (window.__TAURI__ && fileH.path) URL.revokeObjectURL(tempUrl);
+                   const url = (window.__TAURI__ && fileH.path) ? convertFileSrc(fileH.path) : tempUrl;
                    resolvedImages.push({ url, thumbnail });
                 }
              }
@@ -102,8 +110,11 @@ export async function reResolveMedia(items, library) {
                  fileHandle = await dirHandle.getFileHandle(item.filename);
              }
          }
-         const url = (window.__TAURI__ && fileHandle.path) ? convertFileSrc(fileHandle.path) : URL.createObjectURL(await fileHandle.getFile());
-         const thumbnail = item.type === 'image' ? await generateThumbnail(url) : null;
+         const file = await fileHandle.getFile();
+         const tempUrl = URL.createObjectURL(file);
+         const thumbnail = item.type === 'image' ? await generateThumbnail(tempUrl) : null;
+         if (window.__TAURI__ && fileHandle.path) URL.revokeObjectURL(tempUrl);
+         const url = (window.__TAURI__ && fileHandle.path) ? convertFileSrc(fileHandle.path) : tempUrl;
          newItems[i] = { ...item, url, fileHandle, images: item.type === 'image' ? [{ url, thumbnail }] : undefined, thumbnail };
       }
     } catch (err) {
