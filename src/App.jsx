@@ -117,10 +117,21 @@ function App() {
   const projectorTimeoutRef = useRef(null);
   
   // Routing State
-  const [isProjectorView, setIsProjectorView] = useState(false);
-  const [isNetworkView, setIsNetworkView] = useState(false);
+  const params = new URLSearchParams(window.location.search);
+  const [isProjectorView, setIsProjectorView] = useState(!!params.get('projector'));
+  const [isNetworkView, setIsNetworkView] = useState(!!params.get('network'));
   const [projectorConnected, setProjectorConnected] = useState(false);
-  const [remoteControlRoom, setRemoteControlRoom] = useState(null);
+  const [remoteControlRoom, setRemoteControlRoom] = useState(() => {
+      const remoteCode = params.get('remoteControl');
+      if (remoteCode) return remoteCode;
+      if (!window.__TAURI__ && !params.get('network') && !params.get('projector')) {
+          const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          if (!isLocalhost || window.location.pathname.includes('app')) {
+              return 'default';
+          }
+      }
+      return null;
+  });
   const [roomId, setRoomId] = useState(null);
   const [networkPayload, setNetworkPayload] = useState(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -164,10 +175,6 @@ function App() {
   // Handshake and Init
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('projector')) setIsProjectorView(true);
-    if (params.get('network')) setIsNetworkView(true);
-    const remoteCode = params.get('remoteControl');
-    if (remoteCode) { setRemoteControlRoom(remoteCode); }
     const roomFromUrl = params.get('room');
 
     const init = async () => {
