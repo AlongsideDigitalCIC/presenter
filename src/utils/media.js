@@ -116,8 +116,13 @@ export async function reResolveMedia(items, library) {
          const file = await fileHandle.getFile();
          const tempUrl = URL.createObjectURL(file);
          const thumbnail = item.type === 'image' ? await generateThumbnail(tempUrl) : null;
-         if (isTauri() && fileHandle.path) URL.revokeObjectURL(tempUrl);
-         const url = (isTauri() && fileHandle.path) ? convertFileSrc(fileHandle.path) : tempUrl;
+         
+         const isVideoOrAudio = item.type === 'video' || item.type === 'audio';
+         if (isTauri() && fileHandle.path && !isVideoOrAudio) {
+            URL.revokeObjectURL(tempUrl);
+         }
+         
+         const url = (isTauri() && fileHandle.path && !isVideoOrAudio) ? convertFileSrc(fileHandle.path) : tempUrl;
          newItems[i] = { ...item, url, fileHandle, images: item.type === 'image' ? [{ url, thumbnail }] : undefined, thumbnail };
       }
     } catch (err) {

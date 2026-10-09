@@ -198,7 +198,7 @@ export default function RemoteControl({ roomId }) {
                           <button
                              key={idx}
                              onClick={() => sendCommand('set_slide_index', { index: idx })}
-                             className={`aspect-video rounded-xl flex items-center justify-center transition-all active:scale-95 border ${
+                             className={`aspect-video rounded-xl flex items-center justify-center transition-all active:scale-95 border relative overflow-hidden ${
                                 isActive 
                                   ? 'bg-[#3D7B8C] border-[#3D7B8C] shadow-lg text-white' 
                                   : 'bg-white/5 border-white/10 text-white/40'
