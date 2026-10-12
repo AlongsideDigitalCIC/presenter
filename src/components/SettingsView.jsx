@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { availableMonitors } from '@tauri-apps/api/window';
 import { getSongHistory, exportHistoryCSV } from '../services/historyService';
 
-export default function SettingsView({ roomId, churchName, setChurchName, displayFont, setDisplayFont, onChangeLibrary, onClose, selectedMonitor, setSelectedMonitor }) {
+export default function SettingsView({ roomId, churchName, setChurchName, displayFont, setDisplayFont, onChangeLibrary, onClose, selectedMonitor, setSelectedMonitor, remotePassword: propRemotePassword, onSavePassword }) {
   const [ccliFromDate, setCcliFromDate] = useState(() => {
      const d = new Date();
      d.setDate(d.getDate() - 30);
@@ -16,9 +16,15 @@ export default function SettingsView({ roomId, churchName, setChurchName, displa
     const [urlPref, setUrlPref] = useState('');
   const [localIp, setLocalIp] = useState('');
   const [localHostname, setLocalHostname] = useState('');
-  const [remotePassword, setRemotePassword] = useState('');
+  const [remotePassword, setRemotePassword] = useState(propRemotePassword || '');
   const [copied, setCopied] = useState(false);
   const [copiedRemote, setCopiedRemote] = useState(false);
+
+  useEffect(() => {
+    if (propRemotePassword !== undefined) {
+      setRemotePassword(propRemotePassword);
+    }
+  }, [propRemotePassword]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,8 +46,10 @@ export default function SettingsView({ roomId, churchName, setChurchName, displa
           if (storedPref) {
              setUrlPref(storedPref);
           }
-        const storedPassword = await get('presenter_remote_password');
-        if (storedPassword) setRemotePassword(storedPassword);
+        if (propRemotePassword === undefined) {
+          const storedPassword = await get('presenter_remote_password');
+          if (storedPassword) setRemotePassword(storedPassword);
+        }
       } catch(e) {}
 
       try {
@@ -63,7 +71,7 @@ export default function SettingsView({ roomId, churchName, setChurchName, displa
   const base = customBaseUrl || defaultBase;
   const baseWithSlash = base.endsWith('/') ? base : base + '/';
   const liveUrl = baseWithSlash + '?network=true' + (roomId ? '&room=' + roomId : '');
-  const remoteUrl = baseWithSlash + '?remoteControl=' + (roomId || 'default') + (remotePassword ? '&pin=' + remotePassword : '');
+  const remoteUrl = baseWithSlash + '?remoteControl=' + (roomId || 'default');
   const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(liveUrl);
   const remoteQrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(remoteUrl);
 
@@ -96,10 +104,14 @@ export default function SettingsView({ roomId, churchName, setChurchName, displa
 
   const handleSavePassword = async (val) => {
       setRemotePassword(val);
-      try {
-          const { set } = await import('idb-keyval');
-          await set('presenter_remote_password', val);
-      } catch(e) {}
+      if (onSavePassword) {
+          onSavePassword(val);
+      } else {
+          try {
+              const { set } = await import('idb-keyval');
+              await set('presenter_remote_password', val);
+          } catch(e) {}
+      }
   };
 
   const handleCopy = (text, setter) => {
@@ -305,7 +317,7 @@ export default function SettingsView({ roomId, churchName, setChurchName, displa
                            className="w-full bg-[#F7F7F7] border border-[#3D7B8C]/10 rounded-lg px-3 py-2 text-sm text-[#1C355E] focus:outline-none focus:border-[#3D7B8C]/50 transition-all font-medium font-mono tracking-widest"
                         />
                         <p className="text-[10px] text-neutral-400 leading-relaxed">
-                           Set a PIN to prevent unauthorised devices from controlling your presentation.
+                           Set a PIN to prevent unauthorised devices from controlling your presentation. Remote devices will be prompted to enter this PIN to connect.
                         </p>
                     </div>
                 </div>

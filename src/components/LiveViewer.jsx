@@ -23,7 +23,7 @@ const LiveViewer = () => {
         
         ws.onopen = () => {
            console.log("Connected to local WebSocket server");
-           ws.send(JSON.stringify({ type: 'request_state' }));
+           ws.send(JSON.stringify({ type: 'request_state', role: 'live_viewer' }));
         };
         
         ws.onmessage = async (event) => {

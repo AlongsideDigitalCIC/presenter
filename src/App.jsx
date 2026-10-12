@@ -123,8 +123,9 @@ function App() {
   const [isNetworkView, setIsNetworkView] = useState(!!params.get('network'));
   const [projectorConnected, setProjectorConnected] = useState(false);
   const [remoteControlRoom, setRemoteControlRoom] = useState(() => {
-      const remoteCode = params.get('remoteControl');
-      if (remoteCode) return remoteCode;
+      if (params.has('remoteControl')) {
+          return params.get('remoteControl') || 'default';
+      }
       if (!isTauri() && !params.get('network') && !params.get('projector')) {
           const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
           if (!isLocalhost || window.location.pathname.includes('app')) {
@@ -166,6 +167,13 @@ function App() {
   const [playbackStatus, setPlaybackStatus] = useState({ time: 0, duration: 0, paused: undefined });
   const [churchName, setChurchName] = useState("Alongside Digital - Presenter");
   const [displayFont, setDisplayFont] = useState("Inter");
+  const [remotePassword, setRemotePassword] = useState('');
+  const remotePasswordRef = useRef('');
+  const authenticatedClientsRef = useRef(new Set());
+
+  useEffect(() => {
+    remotePasswordRef.current = remotePassword;
+  }, [remotePassword]);
 
   // System Hooks
   const [systemTrigger, refreshLibrary] = useFileSystemWatcher(libraryHandle);
@@ -210,6 +218,12 @@ function App() {
             
             const savedMonitor = await get('presenter_selected_monitor');
             if (savedMonitor) setSelectedMonitor(savedMonitor);
+
+            const savedPassword = await get('presenter_remote_password');
+            if (savedPassword) {
+                setRemotePassword(savedPassword);
+                remotePasswordRef.current = savedPassword;
+            }
         } catch (idbErr) {
             console.error("IDB Restoration Failed (non-fatal):", idbErr);
         }
@@ -257,15 +271,88 @@ function App() {
            
            try {
                const data = JSON.parse(event.data);
+               const currentPin = (remotePasswordRef.current || '').trim();
+               const isPinSet = currentPin.length > 0;
+
                if (data.type === 'request_state') {
+                   const clientId = data.clientId;
+                   const isLiveViewer = data.role === 'live_viewer';
+                   const isAuthed = isLiveViewer || !isPinSet || (clientId && authenticatedClientsRef.current.has(clientId));
+
+                   if (isPinSet && !isAuthed) {
+                       ws.send(JSON.stringify({
+                           type: 'auth_status',
+                           targetClientId: clientId,
+                           pinRequired: true,
+                           authenticated: false
+                       }));
+                       return;
+                   }
+
+                   if (clientId) {
+                       ws.send(JSON.stringify({
+                           type: 'auth_status',
+                           targetClientId: clientId,
+                           pinRequired: isPinSet,
+                           authenticated: true
+                       }));
+                   }
+
+                   const minItems = (serviceItemsRef.current || []).map(i => ({ id: i.id, type: i.type, title: i.title, filename: i.filename }));
+                   const minPayload = livePayloadRef.current ? { ...livePayloadRef.current } : { isLive: false };
+                   delete minPayload.liveItem;
+                   ws.send(JSON.stringify({ type: 'state', payload: minPayload, serviceItems: minItems }));
                    if (livePayloadRef.current) {
-                      const minItems = serviceItemsRef.current.map(i => ({ id: i.id, type: i.type, title: i.title, filename: i.filename }));
-                      const minPayload = { ...livePayloadRef.current };
-                        delete minPayload.liveItem;
-                        ws.send(JSON.stringify({ type: 'state', payload: minPayload, serviceItems: minItems }));
-                        setTriggerMediaSync(prev => prev + 1);
+                       setTriggerMediaSync(prev => prev + 1);
+                   }
+               } else if (data.type === 'auth_verify') {
+                   const clientId = data.clientId;
+                   const submittedPin = (data.pin || '').trim();
+
+                   if (!isPinSet || submittedPin === currentPin) {
+                       if (clientId) authenticatedClientsRef.current.add(clientId);
+                       ws.send(JSON.stringify({
+                           type: 'auth_status',
+                           targetClientId: clientId,
+                           pinRequired: isPinSet,
+                           authenticated: true,
+                           success: true
+                       }));
+
+                       const minItems = (serviceItemsRef.current || []).map(i => ({ id: i.id, type: i.type, title: i.title, filename: i.filename }));
+                       const minPayload = livePayloadRef.current ? { ...livePayloadRef.current } : { isLive: false };
+                       delete minPayload.liveItem;
+                       ws.send(JSON.stringify({ type: 'state', payload: minPayload, serviceItems: minItems }));
+                       if (livePayloadRef.current) {
+                           setTriggerMediaSync(prev => prev + 1);
+                       }
+                   } else {
+                       ws.send(JSON.stringify({
+                           type: 'auth_status',
+                           targetClientId: clientId,
+                           pinRequired: true,
+                           authenticated: false,
+                           error: 'Incorrect PIN'
+                       }));
                    }
                } else if (data.type === 'remote_command') {
+                   if (isPinSet) {
+                       const isAuthed = data.clientId && authenticatedClientsRef.current.has(data.clientId);
+                       if (!isAuthed) {
+                           console.warn("Unauthorized remote command blocked:", data.command);
+                           if (data.clientId) {
+                               ws.send(JSON.stringify({
+                                   type: 'auth_status',
+                                   targetClientId: data.clientId,
+                                   pinRequired: true,
+                                   authenticated: false,
+                                   error: 'PIN authentication required'
+                               }));
+                           }
+                           return;
+                       }
+                   }
+
                    const bc = new BroadcastChannel('presenter-remote-commands');
                    bc.postMessage({ type: 'remote_command', ...data });
                    bc.close();
@@ -1422,6 +1509,24 @@ function App() {
               setChurchName={setChurchName}
               displayFont={displayFont}
               setDisplayFont={setDisplayFont}
+              remotePassword={remotePassword}
+              onSavePassword={async (val) => {
+                  setRemotePassword(val);
+                  remotePasswordRef.current = val;
+                  authenticatedClientsRef.current.clear();
+                  try {
+                      const { set } = await import('idb-keyval');
+                      await set('presenter_remote_password', val);
+                  } catch (e) {}
+                  if (wsRef.current?.readyState === 1) {
+                      const hasPin = !!(val && val.trim().length > 0);
+                      wsRef.current.send(JSON.stringify({
+                          type: 'auth_status',
+                          pinRequired: hasPin,
+                          authenticated: !hasPin
+                      }));
+                  }
+              }}
               onChangeLibrary={() => {
                   handleChangeLibraryPath(); setIsSettingsOpen(false);
               }}

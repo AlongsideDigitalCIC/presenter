@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipForward, SkipBack, MonitorOff, LayoutTemplate, XCircle, Monitor, Radio, FileText, Music, Image as ImgIcon, Video, BookOpen, Presentation, ChevronRight, ChevronLeft, Headphones, Power } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, MonitorOff, LayoutTemplate, XCircle, Monitor, Radio, FileText, Music, Image as ImgIcon, Video, BookOpen, Presentation, ChevronRight, ChevronLeft, Headphones, Power, Lock, Unlock, Eye, EyeOff, AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function RemoteControl({ roomId }) {
   const [status, setStatus] = useState('connecting');
@@ -7,6 +7,39 @@ export default function RemoteControl({ roomId }) {
   const [serviceItems, setServiceItems] = useState([]);
   const [error, setError] = useState(null);
   const connRef = useRef(null);
+
+  // Authentication states
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pinRequired, setPinRequired] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [authError, setAuthError] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Persistent Client Session ID across reloads
+  const clientIdRef = useRef((() => {
+    try {
+      let id = sessionStorage.getItem('presenter_remote_client_id');
+      if (!id) {
+        id = 'rc_' + Math.random().toString(36).substring(2, 10);
+        sessionStorage.setItem('presenter_remote_client_id', id);
+      }
+      return id;
+    } catch (e) {
+      return 'rc_' + Math.random().toString(36).substring(2, 10);
+    }
+  })());
+
+  // Clean URL: Strip any &pin= from URL so PIN is never visible or preserved in the browser address bar
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('pin')) {
+        url.searchParams.delete('pin');
+        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+      }
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     if (!roomId) return;
@@ -18,13 +51,49 @@ export default function RemoteControl({ roomId }) {
     
     ws.onopen = () => {
        setStatus('connected');
-       ws.send(JSON.stringify({ type: 'request_state' }));
+       // Announce remote control and request state
+       ws.send(JSON.stringify({ 
+         type: 'request_state', 
+         clientId: clientIdRef.current,
+         role: 'remote_control' 
+       }));
+
+       // Check if this session already saved a valid PIN
+       try {
+         const savedPin = sessionStorage.getItem('presenter_remote_pin');
+         if (savedPin) {
+           ws.send(JSON.stringify({
+             type: 'auth_verify',
+             clientId: clientIdRef.current,
+             pin: savedPin
+           }));
+         }
+       } catch (e) {}
     };
     
     ws.onmessage = (event) => {
        if (event.data instanceof Blob) return;
        try {
            const data = JSON.parse(event.data);
+
+           if (data.type === 'auth_status') {
+               if (data.targetClientId && data.targetClientId !== clientIdRef.current) return;
+
+               setIsVerifying(false);
+               if (data.authenticated) {
+                   setIsAuthenticated(true);
+                   setPinRequired(false);
+                   setAuthError(null);
+               } else if (data.pinRequired) {
+                   setIsAuthenticated(false);
+                   setPinRequired(true);
+                   if (data.error) {
+                       setAuthError(data.error);
+                       try { sessionStorage.removeItem('presenter_remote_pin'); } catch(e) {}
+                   }
+               }
+           }
+
            if (data.type === 'state' || data.type === 'sync') {
                if (data.payload) setPayload(data.payload);
                if (data.serviceItems) setServiceItems(data.serviceItems);
@@ -48,12 +117,51 @@ export default function RemoteControl({ roomId }) {
 
   const sendCommand = (cmd, args = {}) => {
     if (connRef.current && connRef.current.readyState === 1) {
-      connRef.current.send(JSON.stringify({ type: 'remote_command', command: cmd, ...args }));
+      connRef.current.send(JSON.stringify({ 
+        type: 'remote_command', 
+        clientId: clientIdRef.current,
+        command: cmd, 
+        ...args 
+      }));
     }
   };
 
+  const handleVerifyPin = (e) => {
+    if (e) e.preventDefault();
+    const pin = pinInput.trim();
+    if (!pin) {
+      setAuthError("Please enter a PIN");
+      return;
+    }
+    setIsVerifying(true);
+    setAuthError(null);
+    if (connRef.current && connRef.current.readyState === 1) {
+      try {
+        sessionStorage.setItem('presenter_remote_pin', pin);
+      } catch (err) {}
+      connRef.current.send(JSON.stringify({
+        type: 'auth_verify',
+        clientId: clientIdRef.current,
+        pin: pin
+      }));
+    } else {
+      setIsVerifying(false);
+      setAuthError("Not connected to Presenter server");
+    }
+  };
+
+  const handleLock = () => {
+    try {
+      sessionStorage.removeItem('presenter_remote_pin');
+    } catch (e) {}
+    setIsAuthenticated(false);
+    setPinRequired(true);
+    setPinInput('');
+    setAuthError(null);
+  };
+
   // --- Connecting Screen ---
-  if (status === 'connecting') {
+  if (status === 'connecting' || (!isAuthenticated && !pinRequired && status === 'connected' && !error)) {
      return (
        <div className="min-h-screen bg-[#1C355E] text-white flex flex-col items-center justify-center p-6">
          <div className="w-10 h-10 rounded-full border-t-2 border-[#3D7B8C] animate-spin mb-6"></div>
@@ -75,6 +183,73 @@ export default function RemoteControl({ roomId }) {
      );
   }
 
+  // --- PIN Lock Screen ---
+  if (pinRequired && !isAuthenticated) {
+     return (
+       <div className="min-h-screen bg-[#0f1f38] text-white flex flex-col items-center justify-center p-6 font-sans">
+          <div className="w-full max-w-sm bg-[#1C355E] border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center">
+             <div className="w-16 h-16 rounded-2xl bg-[#3D7B8C]/20 border border-[#3D7B8C]/40 flex items-center justify-center mb-5 text-[#3D7B8C] shadow-lg shadow-[#3D7B8C]/10">
+                <Lock size={30} />
+             </div>
+             <h2 className="text-2xl font-black tracking-tight text-white mb-2">Remote PIN Required</h2>
+             <p className="text-white/50 text-xs mb-6 max-w-xs leading-relaxed">
+                This presentation is protected. Enter the PIN configured in Presenter to unlock remote control.
+             </p>
+
+             <form onSubmit={handleVerifyPin} className="w-full flex flex-col gap-4">
+                <div className="relative w-full">
+                   <input
+                      type={showPin ? "text" : "password"}
+                      value={pinInput}
+                      onChange={(e) => { setPinInput(e.target.value); setAuthError(null); }}
+                      placeholder="Enter PIN"
+                      autoFocus
+                      className="w-full bg-white/5 border border-white/15 focus:border-[#3D7B8C] focus:bg-white/10 rounded-2xl py-4 px-5 text-center text-xl font-mono tracking-[0.25em] text-white placeholder:text-white/20 placeholder:tracking-normal outline-none transition-all"
+                   />
+                   <button
+                      type="button"
+                      onClick={() => setShowPin(!showPin)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition p-1"
+                      title={showPin ? "Hide PIN" : "Show PIN"}
+                   >
+                      {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                   </button>
+                </div>
+
+                {authError && (
+                   <div className="flex items-center justify-center gap-2 text-red-400 text-xs font-semibold bg-red-500/10 border border-red-500/20 py-2.5 px-3 rounded-xl">
+                      <AlertCircle size={14} className="flex-shrink-0" />
+                      <span>{authError}</span>
+                   </div>
+                )}
+
+                <button
+                   type="submit"
+                   disabled={isVerifying || !pinInput.trim()}
+                   className="w-full py-4 bg-[#3D7B8C] hover:bg-[#3D7B8C]/80 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none rounded-2xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-[#3D7B8C]/30 text-white mt-1"
+                >
+                   {isVerifying ? (
+                      <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
+                   ) : (
+                      <>
+                         <span>Unlock Remote</span>
+                         <ArrowRight size={16} />
+                      </>
+                   )}
+                </button>
+             </form>
+
+             <div className="mt-8 pt-4 border-t border-white/5 w-full flex items-center justify-between text-[11px] text-white/30">
+                <span>Room: <strong className="text-white/50 font-mono">{roomId}</strong></span>
+                <span className="flex items-center gap-1.5">
+                   <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div> Connected
+                </span>
+             </div>
+          </div>
+       </div>
+     );
+  }
+
   const isMedia = payload?.mediaType === 'audio' || payload?.mediaType === 'video';
   const hasSlides = payload?.mediaType === 'song' || payload?.mediaType === 'liturgy' || payload?.mediaType === 'bible' || payload?.mediaType === 'slide_deck' || payload?.mediaType === 'image';
 
@@ -86,8 +261,17 @@ export default function RemoteControl({ roomId }) {
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
               <span className="font-bold tracking-widest text-xs uppercase text-white/90">Remote Control</span>
            </div>
-           <div className="text-[10px] text-white/30 font-mono bg-white/5 px-2 py-1 rounded-md">
-              {roomId}
+           <div className="flex items-center gap-2">
+              <div className="text-[10px] text-white/30 font-mono bg-white/5 px-2 py-1 rounded-md">
+                 {roomId}
+              </div>
+              <button 
+                 onClick={handleLock}
+                 title="Lock Remote Control"
+                 className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/50 hover:text-white transition"
+              >
+                 <Lock size={14} />
+              </button>
            </div>
         </header>
 
