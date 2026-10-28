@@ -11,6 +11,23 @@ const netlifyFunctionProxy = (env) => {
       server.middlewares.use(async (req, res, next) => {
         const urlObj = new URL(req.url, `http://${req.headers.host}`);
         
+        if (urlObj.pathname === '/sw.js' || urlObj.pathname.startsWith('/workbox-') || urlObj.pathname === '/registerSW.js') {
+           res.statusCode = 200;
+           res.setHeader('Content-Type', 'application/javascript');
+           res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+           res.end(`
+             self.addEventListener('install', () => self.skipWaiting());
+             self.addEventListener('activate', (event) => {
+               event.waitUntil(
+                 self.registration.unregister().then(() => {
+                   return caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
+                 })
+               );
+             });
+           `);
+           return;
+        }
+
         if (urlObj.pathname === '/.netlify/functions/youversion') {
            const apiKey = env.YOUVERSION_API_KEY;
            if (!apiKey) {
@@ -77,7 +94,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'icons.svg'],
+        includeAssets: ['favicon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           name: "Alongside Digital - Presenter",
           short_name: "Presenter",
@@ -85,14 +102,14 @@ export default defineConfig(({ mode }) => {
           start_url: `${basePath}app`,
           scope: basePath,
           display: "standalone",
-          background_color: "#0a0a0a",
-          theme_color: "#0a0a0a",
+          background_color: "#FAF6F0",
+          theme_color: "#1C355E",
           icons: [
             {
-              src: "favicon.svg",
-              sizes: "any",
-              type: "image/svg+xml",
-              purpose: "any maskable"
+              src: "favicon.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "any"
             },
             {
               src: "pwa-192x192.png",

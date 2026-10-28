@@ -13,36 +13,36 @@ export default function ConfirmModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-white/60 backdrop-blur-md" 
+        className="absolute inset-0 bg-[#1C355E]/40 backdrop-blur-sm" 
         onClick={onCancel}
       />
       
       {/* Modal Card */}
-      <div className="relative w-full max-w-md bg-white border border-[#3D7B8C]/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+      <div className="relative w-full max-w-md bg-white border border-[#E4E1DA] rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="p-8">
           <div className="flex items-center gap-4 mb-6">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-              variant === 'danger' ? 'bg-red-500/10 text-red-600' : 'bg-[#3D7B8C]/20 text-[#3D7B8C]'
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${
+              variant === 'danger' ? 'bg-rose-50 text-[#B91C1C] border-rose-200' : 'bg-[#EDF4F6] text-[#3D7B8C] border-[#3D7B8C]/25'
             }`}>
               <AlertTriangle size={24} />
             </div>
             <div>
               <h3 className="text-xl font-extrabold text-[#1C355E] tracking-tight">{title}</h3>
-              <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mt-1">Action Required</p>
+              <p className="text-xs font-bold text-[#526075] uppercase tracking-widest mt-1">Action Required</p>
             </div>
           </div>
           
-          <p className="text-neutral-700 text-sm leading-relaxed font-medium mb-8">
+          <p className="text-[#526075] text-sm leading-relaxed font-medium mb-8">
             {message}
           </p>
           
           <div className="flex gap-3">
             <button 
               onClick={onCancel}
-              className="flex-1 px-6 py-4 bg-[#F7F7F7] hover:bg-neutral-200 text-neutral-700 font-bold rounded-2xl transition-all border border-[#3D7B8C]/20/50 hover:text-[#1C355E]"
+              className="flex-1 px-6 py-3.5 bg-[#FAF6F0] hover:bg-[#F0EBE1] text-[#1C355E] font-bold rounded-xl transition-colors border border-[#E4E1DA] cursor-pointer"
             >
               {cancelText}
             </button>
@@ -51,10 +51,10 @@ export default function ConfirmModal({
                 onConfirm();
                 onCancel(); // Close after confirming
               }}
-              className={`flex-1 px-6 py-4 font-bold rounded-2xl transition-all shadow-lg active:scale-95 ${
+              className={`flex-1 px-6 py-3.5 font-bold rounded-xl transition-colors shadow-sm cursor-pointer ${
                 variant === 'danger' 
-                  ? 'bg-red-700 hover:bg-red-600 text-white shadow-red-900/20' 
-                  : 'bg-[#3D7B8C] hover:bg-[#3D7B8C] text-white shadow-blue-900/20'
+                  ? 'bg-[#B91C1C] hover:bg-[#991B1B] text-white' 
+                  : 'bg-[#7A502A] hover:bg-[#654121] text-white'
               }`}
             >
               {confirmText}
@@ -64,7 +64,7 @@ export default function ConfirmModal({
         
         <button 
           onClick={onCancel}
-          className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-[#1C355E] transition-colors"
+          className="absolute top-4 right-4 p-2 text-[#526075] hover:text-[#1C355E] hover:bg-[#FAF6F0] rounded-lg transition-colors cursor-pointer"
         >
           <X size={20} />
         </button>

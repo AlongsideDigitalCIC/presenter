@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Layers, File, Music, Image as ImgIcon, Video, FileText, CheckCircle, Check, Trash2, Sparkles, Settings, BookOpen, Headphones } from 'lucide-react';
+import { Search, Plus, Layers, File, Music, Image as ImgIcon, Video, FileText, CheckCircle, Check, Trash2, Sparkles, Settings, BookOpen, Headphones, Presentation } from 'lucide-react';
 import BibleModule from './BibleModule';
 import ServiceFlow from './ServiceFlow';
 import { processBibleJson } from '../services/bibleService';
@@ -10,15 +10,14 @@ import { convertPdfToImages } from '../utils/pdfConverter';
 
 export default function Sidebar({ 
   activeTab, 
-  setActiveTab,
   libraryHandle, 
   searchState, 
   folderFiles,
   linesPerSlide = 2,
+  liturgyLinesPerSlide = 2,
   serviceItems, 
   onServiceReorder, 
   onSelectItem,
-  onAddToService,
   onNewSong,
   onRemoveServiceItem,
   onUpdateServiceItem,
@@ -28,28 +27,20 @@ export default function Sidebar({
   systemTrigger,
   onRefresh,
   onDeleteItem,
-  isLive,
-  liveItem,
   selectedItem,
-  selectedIndices,
   liveItemId,
   playbackStatus = { time: 0, duration: 0, paused: true },
   playedItems,
   onResetPlayed,
   onResetItemPlayed,
-  roomId,
-  churchName,
-  setChurchName,
   stickyAudioId,
-  onToggleSticky,
-  onChangeLibrary
+  onToggleSticky
 }) {
   const effectiveTab = (activeTab === 'new_song' || activeTab === 'edit_song') ? 'Songs' : 
                        (activeTab === 'new_liturgy' || activeTab === 'edit_liturgy') ? 'Liturgy' : 
                        activeTab;
 
   const [localQuery, setLocalQuery] = useState('');
-  const [showAdded, setShowAdded] = useState(false);
   const [bibleToDelete, setBibleToDelete] = useState(null);
   const [songToDelete, setSongToDelete] = useState(null);
   const [fileToDelete, setFileToDelete] = useState(null);
@@ -83,12 +74,6 @@ export default function Sidebar({
   useEffect(() => {
     if (effectiveTab === 'Liturgy') loadLiturgyFiles();
   }, [activeTab, systemTrigger, loadLiturgyFiles]);
-  
-  const triggerAddFeedback = () => {
-     onAddToService();
-     setShowAdded(true);
-     setTimeout(() => setShowAdded(false), 2000);
-  };
 
   const handleSearch = (e) => {
     const val = e.target.value;
@@ -104,6 +89,14 @@ export default function Sidebar({
     if (!videoUrl.trim()) return;
 
     let url = videoUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      if (/^(?:www\.)?(?:youtube\.com|youtu\.be|vimeo\.com)/i.test(url)) {
+        url = `https://${url}`;
+      } else {
+        alert('Please enter a valid video URL starting with https:// or http://');
+        return;
+      }
+    }
     let title = videoTitle.trim() || "External Video";
     let isVideo = true;
     let type = 'video';
@@ -131,7 +124,9 @@ export default function Sidebar({
          const pathname = new URL(url).pathname;
          const filename = pathname.split('/').pop();
          if (filename) title = filename;
-       } catch(e) {}
+       } catch {
+         // ignore invalid URL
+       }
     }
 
     onSelectItem({
@@ -184,7 +179,7 @@ export default function Sidebar({
     return () => clearTimeout(timer);
   }, [videoUrl, activeTab]);
 
-  const handleGenericFileClick = async (fileObj, relativePath = null) => {
+  const handleGenericFileClick = async (fileObj) => {
     setIsLoadingMedia(true);
     // Yield to let the loading state render
     await new Promise(r => setTimeout(r, 50));
@@ -262,17 +257,39 @@ export default function Sidebar({
            previewItem.isDocument = true;
            previewItem.type = 'document';
        }
-    } else if (['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'key', 'pages', 'numbers'].includes(ext)) {
+    } else if (ext === 'pptx') {
+       try {
+           const { convertPptxToImages } = await import('../utils/pptxConverter');
+           const result = await convertPptxToImages(file);
+           previewItem.images = result.images;
+           previewItem.type = 'slide_deck';
+       } catch (e) {
+           console.error("Failed to parse PPTX", e);
+           previewItem.isDocument = true;
+           previewItem.type = 'document';
+       }
+    } else if (['ppt', 'doc', 'docx', 'xls', 'xlsx', 'key', 'pages', 'numbers'].includes(ext)) {
        previewItem.isDocument = true;
        previewItem.type = 'document';
     } else if (['md', 'txt', 'presenter'].includes(ext)) {
        const text = await file.text();
-       if (activeTab === 'Liturgy' || text.includes('---')) {
-          const parsed = parseLiturgyMarkdown(text, linesPerSlide);
-          previewItem = { ...previewItem, ...parsed, type: 'liturgy', slides: parsed.slides, rawText: text };
+       if (activeTab === 'Liturgy' || (text.includes('---') && (text.includes('Leader:') || text.includes('Congregation:') || text.includes('People:') || text.includes('Speaker:')))) {
+          const parsed = parseLiturgyMarkdown(text, liturgyLinesPerSlide);
+          previewItem = { ...previewItem, ...parsed, type: 'liturgy', linesPerSlide: liturgyLinesPerSlide, slides: parsed.slides, rawText: text };
        } else {
           const parsed = parseSongMarkdown(text, linesPerSlide);
-          previewItem = { ...previewItem, ...parsed, type: 'song', slides: parsed.slides, rawText: text };
+          previewItem = { 
+            ...previewItem, 
+            ...parsed, 
+            title: parsed.metadata?.title || previewItem.title,
+            artist: parsed.metadata?.artist || '',
+            ccli: parsed.metadata?.ccli || '',
+            copyright: parsed.metadata?.copyright || '',
+            type: 'song', 
+            linesPerSlide,
+            slides: parsed.slides, 
+            rawText: text 
+          };
        }
     } else if (['json'].includes(ext) && activeTab === 'Bible') {
        const text = await file.text();
@@ -377,12 +394,13 @@ export default function Sidebar({
       try {
         const f = await file.handle.getFile();
         const text = await f.text();
-        const parsed = parseLiturgyMarkdown(text, 4);
+        const parsed = parseLiturgyMarkdown(text, liturgyLinesPerSlide);
         onSelectItem({
           type: 'liturgy',
           id: file.name,
           filename: file.name,
           title: parsed.metadata.title || file.name.replace('.md', ''),
+          linesPerSlide: liturgyLinesPerSlide,
           slides: parsed.slides,
           rawText: text,
           fileHandle: file.handle,
@@ -396,15 +414,15 @@ export default function Sidebar({
     return (
       <div className="flex flex-col h-full w-full gap-4 pt-2">
         <div className="flex justify-between items-center">
-          <div className="text-xs font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-            <BookOpen size={14} /> Liturgy Library
+          <div className="text-xs font-bold text-[#526075] uppercase tracking-widest flex items-center gap-2">
+            <BookOpen size={14} className="text-[#3D7B8C]" /> Liturgy Library
           </div>
           <button
             onClick={() => {
               onSelectItem({ type: 'new_liturgy', id: 'new_liturgy' });
               setSelectedLiturgyFile(null);
             }}
-            className="text-[10px] bg-[#3D7B8C] text-white border border-[#3D7B8C]/50 hover:opacity-90 shadow-md px-2 py-1 rounded font-bold uppercase tracking-wider transition"
+            className="text-[10px] bg-[#7A502A] hover:bg-[#654121] text-white shadow-sm px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider transition-colors cursor-pointer"
           >
             + New
           </button>
@@ -412,11 +430,11 @@ export default function Sidebar({
 
 
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 border-t border-[#3D7B8C]/10/50 pt-3 px-1">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 border-t border-[#E4E1DA] pt-3 px-1">
           {liturgyFiles.length === 0 && (
-            <div className="text-sm font-medium text-neutral-400 italic p-4 text-center bg-white/50 rounded-2xl border border-[#3D7B8C]/10 border-dashed shadow-inner opacity-80 mt-4 p-6">
+            <div className="text-sm font-medium text-[#526075] italic text-center bg-white rounded-2xl border border-[#E4E1DA] border-dashed mt-4 p-6">
               No liturgy files yet.<br/>
-              <span className="text-[10px]">Click "+ New" to create one.</span>
+              <span className="text-[11px]">Click "+ New" to create one.</span>
             </div>
           )}
           {liturgyFiles
@@ -428,19 +446,19 @@ export default function Sidebar({
                 <div
                   key={file.name}
                   onClick={() => handleLiturgySelect(file)}
-                  className={`p-3.5 rounded-xl cursor-pointer border transition flex justify-between items-center shadow-sm ${isSelected ? 'bg-[#1C355E] text-white shadow-xl scale-[1.02] border-[#1C355E]' : isInService ? 'bg-[#3D7B8C]/10 border-[#3D7B8C]/50 shadow-md' : 'bg-white/80 border-[#3D7B8C]/20/50 hover:bg-neutral-200/90 hover:border-[#3D7B8C]/50 shadow-md hover:shadow-lg'}`}
+                  className={`p-3.5 rounded-xl cursor-pointer border transition-colors flex justify-between items-center shadow-sm ${isSelected ? 'bg-[#1C355E] text-white border-[#1C355E]' : isInService ? 'bg-[#EDF4F6] border-[#3D7B8C]/40 text-[#1C355E]' : 'bg-white border-[#E4E1DA] hover:bg-[#F0EBE1]/60 hover:border-[#3D7B8C] text-[#1C355E]'}`}
                 >
                   <div className="flex items-center gap-3 truncate flex-1">
-                    <BookOpen size={14} className={isSelected ? 'text-[#3D7B8C]' : 'text-neutral-400'} />
-                    <div className="font-semibold text-xs text-inherit truncate">
+                    <BookOpen size={14} className={isSelected ? 'text-[#77A0A8]' : 'text-[#526075]'} />
+                    <div className={`font-semibold text-xs truncate ${isSelected ? 'text-white' : 'text-[#1C355E]'}`}>
                       {file.name.replace('.md', '')}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {isInService && <CheckCircle size={14} className="text-[#3D7B8C] flex-shrink-0" />}
+                    {isInService && <CheckCircle size={14} className={isSelected ? 'text-[#77A0A8] flex-shrink-0' : 'text-[#3D7B8C] flex-shrink-0'} />}
                     <div
                       onClick={(e) => { e.stopPropagation(); setLiturgyToDelete(file); }}
-                      className="p-1.5 hover:bg-red-500/20 text-neutral-400 hover:text-red-500 rounded-lg transition-colors"
+                      className={`p-1.5 rounded-lg transition-colors ${isSelected ? 'text-white/70 hover:bg-white/15 hover:text-white' : 'text-[#526075] hover:bg-rose-50 hover:text-[#B91C1C]'}`}
                       title="Delete Liturgy File"
                     >
                       <Trash2 size={14} />
@@ -499,9 +517,9 @@ export default function Sidebar({
            onSelectDocument={(data) => onSelectItem({...data, type: 'bible'})} 
         />
         
-        <div className="flex-1 overflow-y-auto custom-scrollbar mt-2 border-t border-[#3D7B8C]/10/50 pt-3">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-3 px-1">Saved Offline Verses</div>
-          {folderFiles.length === 0 && <div className="text-xs text-neutral-600 px-1 italic">No offline verses cached yet.</div>}
+        <div className="flex-1 overflow-y-auto custom-scrollbar mt-2 border-t border-[#E4E1DA] pt-3">
+          <div className="text-[10px] font-bold text-[#526075] uppercase tracking-widest mb-3 px-1">Saved Offline Verses</div>
+          {folderFiles.length === 0 && <div className="text-xs text-[#526075] px-1 italic">No offline verses cached yet.</div>}
           <div className="space-y-2 px-1">
             {folderFiles.map(file => {
                const isInService = checkInService(file.name);
@@ -510,17 +528,17 @@ export default function Sidebar({
                  <div 
                    key={file.name} 
                    onClick={() => handleGenericFileClick(file)}
-                   className={`p-3.5 rounded-xl cursor-pointer transition border flex justify-between items-center shadow-sm ${isSelected ? 'bg-[#1C355E] text-white shadow-xl scale-[1.02] border-[#1C355E]' : isInService ? 'bg-[#3D7B8C]/10 border-[#3D7B8C]/50 shadow-md' : 'bg-white/80 border-[#3D7B8C]/20/50 hover:bg-neutral-200/90 hover:border-[#3D7B8C]/50 shadow-md hover:shadow-lg'}`}
+                   className={`p-3.5 rounded-xl cursor-pointer transition-colors border flex justify-between items-center shadow-sm ${isSelected ? 'bg-[#1C355E] text-white border-[#1C355E]' : isInService ? 'bg-[#EDF4F6] border-[#3D7B8C]/40' : 'bg-white border-[#E4E1DA] hover:bg-[#F0EBE1]/60 hover:border-[#3D7B8C]'}`}
                  >
                    <div className="flex-1 min-w-0">
-                     <div className="text-xs font-bold text-[#1C355E] truncate">{file.name.replace('.json', '').toUpperCase()}</div>
-                     <div className="text-[10px] text-neutral-400 font-medium">OFFLINE CACHE</div>
+                     <div className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-[#1C355E]'}`}>{file.name.replace('.json', '').toUpperCase()}</div>
+                     <div className={`text-[10px] font-medium ${isSelected ? 'text-white/75' : 'text-[#526075]'}`}>OFFLINE CACHE</div>
                    </div>
                    <div className="flex items-center gap-2">
-                     {isInService && <CheckCircle size={14} className="text-[#3D7B8C] flex-shrink-0" />}
+                     {isInService && <CheckCircle size={14} className={isSelected ? 'text-[#77A0A8] flex-shrink-0' : 'text-[#3D7B8C] flex-shrink-0'} />}
                      <div 
                         onClick={(e) => handleDeleteBibleFile(e, file)}
-                        className="p-1.5 hover:bg-red-500/20 text-neutral-400 hover:text-red-500 rounded-lg transition-colors"
+                        className={`p-1.5 rounded-lg transition-colors ${isSelected ? 'text-white/70 hover:bg-white/15 hover:text-white' : 'text-[#526075] hover:bg-rose-50 hover:text-[#B91C1C]'}`}
                         title="Remove from Cache"
                      >
                         <Trash2 size={14} />
@@ -550,28 +568,28 @@ export default function Sidebar({
     return (
         <div className="flex flex-col h-full gap-4 pt-2 w-full">
             <div className="flex justify-between items-center">
-                <div className="text-xs font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-                    <Music size={14} /> Songs Library
+                <div className="text-xs font-bold text-[#526075] uppercase tracking-widest flex items-center gap-2">
+                    <Music size={14} className="text-[#3D7B8C]" /> Songs Library
                 </div>
-                <button onClick={onNewSong} className="text-[10px] bg-[#3D7B8C] text-white border border-[#3D7B8C]/50 hover:opacity-90 shadow-md px-2 py-1 rounded font-bold uppercase tracking-wider transition">
+                <button onClick={onNewSong} className="text-[10px] bg-[#7A502A] hover:bg-[#654121] text-white shadow-sm px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider transition-colors cursor-pointer">
                     + New
                 </button>
             </div>
             
-            <div className="relative mt-3">
+            <div className="relative mt-1">
                 <input 
                   type="text" 
                   placeholder="Search Library..." 
                   value={localQuery} 
                   onChange={handleSearch} 
-                  className="w-full bg-white/80 border border-[#3D7B8C]/20/50 rounded-xl text-sm font-medium text-[#1C355E] pl-10 pr-3 py-3 outline-none focus:border-[#3D7B8C] transition shadow-inner" 
+                  className="w-full bg-white border border-[#E4E1DA] rounded-xl text-sm font-medium text-[#1C355E] placeholder:text-[#526075]/70 pl-10 pr-3 py-2.5 outline-none focus:border-[#3D7B8C] transition-colors" 
                 />
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors text-neutral-400" />
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors text-[#526075]" />
             </div>
 
 
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mt-1 border-t border-[#3D7B8C]/10/50 pt-4 px-1">
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mt-1 border-t border-[#E4E1DA] pt-4 px-1">
                 {(localQuery.trim() ? searchState.results : (searchState.allItems || [])).map(res => {
                     const isInService = checkInService(res.id) || checkInService(res.title);
                     const isSelected = selectedItem?.id === res.id;
@@ -579,17 +597,17 @@ export default function Sidebar({
                         <div 
                              key={res.id} 
                              onClick={() => onSelectItem({ type: 'song', ...res, slides: res.slides })} 
-                             className={`p-3.5 rounded-xl cursor-pointer border transition flex justify-between items-start shadow-sm ${isSelected ? 'bg-[#1C355E] text-white shadow-xl scale-[1.02] border-[#1C355E]' : isInService ? 'bg-[#3D7B8C]/10 border-[#3D7B8C]/50 shadow-md' : 'bg-white/80 border-[#3D7B8C]/20/50 hover:bg-neutral-200/90 hover:border-[#3D7B8C]/50 shadow-md hover:shadow-lg'}`}
+                             className={`p-3.5 rounded-xl cursor-pointer border transition-colors flex justify-between items-start shadow-sm ${isSelected ? 'bg-[#1C355E] text-white border-[#1C355E]' : isInService ? 'bg-[#EDF4F6] border-[#3D7B8C]/40' : 'bg-white border-[#E4E1DA] hover:bg-[#F0EBE1]/60 hover:border-[#3D7B8C]'}`}
                         >
                             <div className="truncate pr-2 flex-1">
-                                <div className="font-semibold text-sm text-neutral-800 truncate">{res.title}</div>
-                                {res.artist && <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mt-1 truncate">{res.artist}</div>}
+                                <div className={`font-semibold text-sm truncate ${isSelected ? 'text-white' : 'text-[#1C355E]'}`}>{res.title}</div>
+                                {res.artist && <div className={`text-[10px] font-bold uppercase tracking-wider mt-1 truncate ${isSelected ? 'text-white/75' : 'text-[#526075]'}`}>{res.artist}</div>}
                             </div>
                             <div className="flex items-center gap-2">
-                                {isInService && <CheckCircle size={14} className="text-[#3D7B8C] flex-shrink-0" />}
+                                {isInService && <CheckCircle size={14} className={isSelected ? 'text-[#77A0A8] flex-shrink-0' : 'text-[#3D7B8C] flex-shrink-0'} />}
                                 <div 
                                     onClick={(e) => handleDeleteSong(e, res)}
-                                    className="p-1.5 hover:bg-red-500/20 text-neutral-400 hover:text-red-500 rounded-lg transition-colors"
+                                    className={`p-1.5 rounded-lg transition-colors ${isSelected ? 'text-white/70 hover:bg-white/15 hover:text-white' : 'text-[#526075] hover:bg-rose-50 hover:text-[#B91C1C]'}`}
                                     title="Delete Song"
                                 >
                                     <Trash2 size={14} />
@@ -613,7 +631,7 @@ export default function Sidebar({
   }
 
   // 4. Generic Folder View (Documents, Videos, Images, Music)
-  const IconProps = { size: 14, className: "text-neutral-400" };
+  const IconProps = { size: 14, className: "text-[#3D7B8C]" };
   const getIcon = () => {
       switch(effectiveTab) {
           case 'Videos': return <Video {...IconProps} />;
@@ -625,7 +643,7 @@ export default function Sidebar({
 
   return (
     <div className="flex flex-col h-full gap-4 pt-2 w-full">
-      <div className="text-xs font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+      <div className="text-xs font-bold text-[#526075] uppercase tracking-widest flex items-center gap-2">
          {getIcon()} {effectiveTab} Library
       </div>
       
@@ -635,14 +653,14 @@ export default function Sidebar({
           placeholder={`Filter ${effectiveTab}...`}
           value={localQuery}
           onChange={(e) => setLocalQuery(e.target.value)}
-          className="w-full bg-white/80 border border-[#3D7B8C]/20/50 rounded-xl text-sm font-medium text-[#1C355E] pl-10 pr-3 py-3 outline-none focus:border-[#3D7B8C] transition shadow-inner"
+          className="w-full bg-white border border-[#E4E1DA] rounded-xl text-sm font-medium text-[#1C355E] placeholder:text-[#526075]/70 pl-10 pr-3 py-2.5 outline-none focus:border-[#3D7B8C] transition-colors"
         />
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#526075]" />
       </div>
 
       {activeTab === 'Videos' && (
-        <form onSubmit={handleAddExternalVideo} className="bg-white border border-[#3D7B8C]/10 rounded-xl p-4 flex flex-col gap-3 shadow-inner">
-           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest flex justify-between">
+        <form onSubmit={handleAddExternalVideo} className="bg-white border border-[#E4E1DA] rounded-xl p-4 flex flex-col gap-3 shadow-sm">
+           <div className="text-[10px] font-bold text-[#526075] uppercase tracking-widest flex justify-between">
               <span>Add Video URL</span>
               {isFetchingTitle && <span className="animate-pulse text-[#3D7B8C]">Fetching Info...</span>}
            </div>
@@ -652,16 +670,16 @@ export default function Sidebar({
                 placeholder="Paste URL (YouTube, Vimeo...)"
                 value={videoUrl}
                 onChange={(e) => setVideoUrl(e.target.value)}
-                className="w-full bg-[#F7F7F7] border border-[#3D7B8C]/10 rounded-lg text-xs py-2 px-3 text-[#1C355E] outline-none focus:border-[#3D7B8C] transition"
+                className="w-full bg-[#FAF6F0] border border-[#E4E1DA] rounded-lg text-xs py-2 px-3 text-[#1C355E] placeholder:text-[#526075]/70 outline-none focus:border-[#3D7B8C] transition-colors"
               />
               <input 
                 type="text" 
                 placeholder="Video Title (Optional)"
                 value={videoTitle}
                 onChange={(e) => setVideoTitle(e.target.value)}
-                className="w-full bg-[#F7F7F7] border border-[#3D7B8C]/10 rounded-lg text-xs py-2 px-3 text-[#1C355E] outline-none focus:border-[#3D7B8C] transition"
+                className="w-full bg-[#FAF6F0] border border-[#E4E1DA] rounded-lg text-xs py-2 px-3 text-[#1C355E] placeholder:text-[#526075]/70 outline-none focus:border-[#3D7B8C] transition-colors"
               />
-              <div className="text-[9px] text-neutral-400 px-1 mt-1 leading-relaxed">
+              <div className="text-[10px] text-[#526075] px-1 mt-1 leading-relaxed">
                  <span className="text-[#3D7B8C] font-bold uppercase tracking-tight mr-1">Tip:</span> 
                  Some sites (like Pixabay) block embedding. Try to find a "Direct Link" or "Embed" URL if it fails to load.
               </div>
@@ -669,7 +687,7 @@ export default function Sidebar({
               <button 
                 type="submit"
                 disabled={!videoUrl.trim()}
-                className="flex-1 bg-[#3D7B8C] hover:bg-[#3D7B8C] disabled:opacity-50 text-white text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition shadow-lg border border-blue-400/20"
+                className="flex-1 bg-[#7A502A] hover:bg-[#654121] disabled:opacity-50 text-white text-[10px] font-bold uppercase tracking-wider py-2.5 rounded-lg transition-colors shadow-sm cursor-pointer"
               >
                 PREVIEW VIDEO
               </button>
@@ -677,7 +695,7 @@ export default function Sidebar({
                 type="button"
                 onClick={() => { setVideoUrl(''); setVideoTitle(''); }}
                 title="Clear URL Form"
-                className="px-3 bg-[#F7F7F7] hover:bg-neutral-200 text-neutral-400 hover:text-red-500 rounded-lg border border-[#3D7B8C]/20/50 transition flex items-center justify-center"
+                className="px-3 bg-[#FAF6F0] hover:bg-[#F0EBE1] text-[#526075] hover:text-[#B91C1C] rounded-lg border border-[#E4E1DA] transition-colors flex items-center justify-center cursor-pointer"
               >
                 <Trash2 size={16} />
               </button>
@@ -688,9 +706,9 @@ export default function Sidebar({
 
 
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mt-2 border-t border-[#3D7B8C]/10/50 pt-4 px-1 relative">
+      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mt-2 border-t border-[#E4E1DA] pt-4 px-1 relative">
           {isLoadingMedia && (
-            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-xl">
+            <div className="absolute inset-0 bg-white/85 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-xl">
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3D7B8C] mb-3"></div>
                <div className="text-xs font-bold text-[#3D7B8C] tracking-widest uppercase">Processing Media...</div>
             </div>
@@ -704,17 +722,23 @@ export default function Sidebar({
                   <div 
                     key={file.name} 
                     onClick={() => handleGenericFileClick(file)}
-                    className={`p-3.5 rounded-xl cursor-pointer border transition flex items-center justify-between gap-3 shadow-sm ${isSelected ? 'bg-[#1C355E] text-white shadow-xl scale-[1.02] border-[#1C355E]' : isInService ? 'bg-[#3D7B8C]/10 border-[#3D7B8C]/50 shadow-md' : 'bg-white/80 border-[#3D7B8C]/20/50 hover:bg-neutral-200/90 hover:border-[#3D7B8C]/50 shadow-md hover:shadow-lg'}`}
+                    className={`p-3.5 rounded-xl cursor-pointer border transition-colors flex items-center justify-between gap-3 shadow-sm ${isSelected ? 'bg-[#1C355E] text-white border-[#1C355E]' : isInService ? 'bg-[#EDF4F6] border-[#3D7B8C]/40 text-[#1C355E]' : 'bg-white border-[#E4E1DA] hover:bg-[#F0EBE1]/60 hover:border-[#3D7B8C] text-[#1C355E]'}`}
                   >
                    <div className="flex items-center gap-3 truncate">
-                      {file.isDirectory ? <Layers size={16} className="text-[#3D7B8C] flex-shrink-0" /> : <FileText size={16} className="text-neutral-400 flex-shrink-0" />}
-                      <div className="font-semibold text-xs text-inherit truncate">{file.name}</div>
+                      {file.isDirectory ? (
+                        <Layers size={16} className={isSelected ? 'text-[#77A0A8] flex-shrink-0' : 'text-[#3D7B8C] flex-shrink-0'} />
+                      ) : file.name.toLowerCase().endsWith('.pptx') ? (
+                        <Presentation size={16} className={isSelected ? 'text-[#77A0A8] flex-shrink-0' : 'text-[#3D7B8C] flex-shrink-0'} />
+                      ) : (
+                        <FileText size={16} className={isSelected ? 'text-white/80 flex-shrink-0' : 'text-[#526075] flex-shrink-0'} />
+                      )}
+                      <div className={`font-semibold text-xs truncate ${isSelected ? 'text-white' : 'text-[#1C355E]'}`}>{file.name}</div>
                    </div>
                    <div className="flex items-center gap-2">
-                       {isInService && <CheckCircle size={14} className="text-[#3D7B8C] flex-shrink-0" />}
+                       {isInService && <CheckCircle size={14} className={isSelected ? 'text-[#77A0A8] flex-shrink-0' : 'text-[#3D7B8C] flex-shrink-0'} />}
                        <div 
                           onClick={(e) => handleDeleteGenericFile(e, file)}
-                          className="p-1.5 hover:bg-red-500/20 text-neutral-400 hover:text-red-500 rounded-lg transition-colors"
+                          className={`p-1.5 rounded-lg transition-colors ${isSelected ? 'text-white/70 hover:bg-white/15 hover:text-white' : 'text-[#526075] hover:bg-rose-50 hover:text-[#B91C1C]'}`}
                           title={`Delete ${effectiveTab.slice(0, -1)}`}
                        >
                           <Trash2 size={14} />
@@ -725,7 +749,7 @@ export default function Sidebar({
           })}
 
           {folderFiles.length === 0 && (
-             <div className="text-sm font-medium text-neutral-400 italic p-4 text-center bg-white/50 rounded-2xl border border-[#3D7B8C]/10 border-dashed shadow-inner opacity-80 mt-4 p-6">
+             <div className="text-sm font-medium text-[#526075] italic text-center bg-white rounded-2xl border border-[#E4E1DA] border-dashed mt-4 p-6">
                  No files found.
              </div>
           )}

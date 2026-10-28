@@ -91,6 +91,7 @@ export function useSearchIndexer(libraryHandle, watcherTrigger) {
               title: parsed.metadata.title || name.replace('.md', ''),
               artist: parsed.metadata.artist || '',
               ccli: parsed.metadata.ccli || '',
+              copyright: parsed.metadata.copyright || '',
               lyrics: rawLyrics,
               rawText: text,
               handle: entry

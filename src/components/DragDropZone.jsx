@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, Presentation, Loader2 } from 'lucide-react';
 
 export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
   const [isDragging, setIsDragging] = useState(false);
-  const [dragCounter, setDragCounter] = useState(0);
+  const [_dragCounter, setDragCounter] = useState(0);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractStatus, setExtractStatus] = useState('');
 
   const handleDragEnter = useCallback((e) => {
     if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
@@ -87,8 +89,39 @@ export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
              if (!file) continue;
              
              const ext = file.name.split('.').pop().toLowerCase();
+
+             // Special Handler for PowerPoint Presentations (.pptx)
+             if (ext === 'pptx') {
+               try {
+                 setIsExtracting(true);
+                 setExtractStatus(`Extracting slides from ${file.name}...`);
+                 const { extractPptxToLibrary } = await import('../utils/pptxConverter');
+                 await extractPptxToLibrary(file, libraryHandle, (statusMsg) => {
+                   setExtractStatus(statusMsg);
+                 });
+                 console.log(`Smart Ingest: Extracted PowerPoint deck from ${file.name}`);
+                 if (onFileAdded) onFileAdded();
+               } catch (err) {
+                 console.error(`Failed to extract PPTX ${file.name}`, err);
+                 // Fallback: save raw file into Images
+                 try {
+                   const dirHandle = await libraryHandle.getDirectoryHandle('Images', { create: true });
+                   const newFileHandle = await dirHandle.getFileHandle(file.name, { create: true });
+                   const writable = await newFileHandle.createWritable();
+                   await writable.write(file);
+                   await writable.close();
+                   if (onFileAdded) onFileAdded();
+                 } catch {
+                   /* ignore fallback write error */
+                 }
+               } finally {
+                 setIsExtracting(false);
+                 setExtractStatus('');
+               }
+               continue;
+             }
+
              let targetFolder = 'Documents';
-             
              if (['md', 'txt'].includes(ext)) targetFolder = 'Songs';
              else if (['mp4', 'mov', 'webm'].includes(ext)) targetFolder = 'Videos';
              else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'].includes(ext)) targetFolder = 'Images';
@@ -130,12 +163,30 @@ export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
   return (
     <>
       {children}
-      {isDragging && (
+
+      {/* Extracting PowerPoint Overlay */}
+      {isExtracting && (
+        <div className="fixed inset-0 z-[120] bg-[#1C355E]/95 backdrop-blur-md flex flex-col items-center justify-center pointer-events-none transition-all duration-300">
+           <div className="relative mb-6">
+              <Presentation size={64} className="text-white" />
+              <div className="absolute -bottom-2 -right-2 bg-[#3D7B8C] rounded-full p-1.5 shadow-lg animate-spin">
+                 <Loader2 size={18} className="text-white" />
+              </div>
+           </div>
+           <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-wider">Extracting PowerPoint...</h2>
+           <p className="text-white/80 mt-3 text-sm md:text-base font-semibold px-6 text-center max-w-lg">
+             {extractStatus || 'Extracting slides into high-resolution images & PDF without PowerPoint...'}
+           </p>
+        </div>
+      )}
+
+      {/* Dragging Overlay */}
+      {isDragging && !isExtracting && (
         <div className="fixed inset-0 z-[100] bg-[#1C355E]/95 backdrop-blur-md flex flex-col items-center justify-center pointer-events-none transition-all duration-300">
-           <UploadCloud size={80} className="text-[#1C355E] mb-6 animate-bounce" />
-           <h2 className="text-4xl md:text-5xl font-extrabold text-[#1C355E] tracking-widest drop-shadow-2xl">SMART INGEST</h2>
-           <p className="text-[#3D7B8C] mt-4 text-sm md:text-lg font-medium opacity-90 tracking-wide">
-             Drop files or entire Presentation Folders securely into Presenter limitlessly.
+           <UploadCloud size={80} className="text-white mb-6 animate-bounce" />
+           <h2 className="text-4xl md:text-5xl font-extrabold text-white tracking-widest">SMART INGEST</h2>
+           <p className="text-white/85 mt-4 text-sm md:text-lg font-medium tracking-wide text-center px-6 max-w-xl">
+             Drop PowerPoint presentations, slides, videos, audio, or entire folders into Presenter.
            </p>
         </div>
       )}

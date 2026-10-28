@@ -1,26 +1,50 @@
-import { CheckCircle, Circle, Plus, Minus } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle, Circle, Plus, Minus, Download, Loader2 } from 'lucide-react';
 
 export default function ImageArrayViewer({ images, currentIndex, onSelectIndex, item, isServiceItem, onAddSelectedToService, onRemoveSelectedFromService, selectedIndices, onToggleSelection }) {
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
   if (!images || images.length === 0) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-white border border-[#3D7B8C]/10 rounded-2xl">
-        <span className="text-neutral-400 font-bold uppercase tracking-widest text-sm">No Images Found</span>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#FAF6F0] border border-[#E4E1DA] rounded-2xl">
+        <span className="text-[#526075] font-bold uppercase tracking-widest text-sm">No Images Found</span>
       </div>
     );
   }
 
   const title = item?.title || 'Slide Deck';
 
+  const handleExportPdf = async () => {
+    try {
+      setIsExportingPdf(true);
+      const { createPdfFromSlideImages } = await import('../utils/pptxConverter');
+      const blob = createPdfFromSlideImages(images);
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title.replace(/\.[^/.]+$/, '')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    } catch (err) {
+      console.error('Failed to export PDF', err);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex flex-col mb-6 border-b border-[#3D7B8C]/10/50 pb-4 gap-4">
+      <div className="flex flex-col mb-6 border-b border-[#E4E1DA] pb-4 gap-4">
         <div className="flex items-center gap-3">
             {isServiceItem ? (
               selectedIndices?.size > 0 && (
                 <button
                   onClick={onRemoveSelectedFromService}
-                  className="flex items-center justify-center h-10 gap-2 px-6 py-2 bg-red-600 hover:bg-red-500 text-[#1C355E] rounded-xl transition-all font-black text-xs uppercase tracking-widest shadow-lg shadow-red-900/20 active:scale-95"
+                  className="flex items-center justify-center h-10 gap-2 px-6 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer"
                 >
                   <Minus size={16} strokeWidth={3} />
                   Remove Selected ({selectedIndices.size})
@@ -29,17 +53,27 @@ export default function ImageArrayViewer({ images, currentIndex, onSelectIndex, 
             ) : (
               <button
                 onClick={onAddSelectedToService}
-                className="flex items-center justify-center h-10 gap-2 px-6 py-2 bg-[#3D7B8C] hover:bg-[#3D7B8C] text-white rounded-xl transition-all font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-900/20 active:scale-95"
+                className="flex items-center justify-center h-10 gap-2 px-6 py-2 bg-[#7A502A] hover:bg-[#654121] text-white rounded-xl transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer"
               >
                 <Plus size={16} strokeWidth={3} />
                 {selectedIndices?.size > 0 ? `Add Selected (${selectedIndices.size})` : 'Add To Service'}
               </button>
             )}
+
+            <button
+              onClick={handleExportPdf}
+              disabled={isExportingPdf}
+              className="flex items-center justify-center h-10 gap-2 px-4 py-2 bg-[#FAF6F0] hover:bg-[#F0EBE1] text-[#1C355E] rounded-xl border border-[#E4E1DA] transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer disabled:opacity-50"
+              title="Download/Export all slides as a PDF file"
+            >
+              {isExportingPdf ? <Loader2 size={15} className="animate-spin text-[#3D7B8C]" /> : <Download size={15} className="text-[#3D7B8C]" />}
+              Export PDF
+            </button>
         </div>
 
         <div className="flex flex-col">
           <h2 className="text-3xl font-extrabold text-[#1C355E] tracking-tight">{title}</h2>
-          <div className="text-sm font-bold text-neutral-400 mt-2 uppercase tracking-widest leading-none">
+          <div className="text-sm font-bold text-[#526075] mt-2 uppercase tracking-widest leading-none">
             {images.length} Image{images.length !== 1 ? 's' : ''}
           </div>
         </div>
@@ -47,7 +81,7 @@ export default function ImageArrayViewer({ images, currentIndex, onSelectIndex, 
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-32 pt-2 px-1">
-        <div className="grid grid-cols-2 gap-x-8 gap-y-12">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-10">
           {images.map((img, i) => {
             const isActiveCard = i === currentIndex;
             return (
@@ -55,21 +89,21 @@ export default function ImageArrayViewer({ images, currentIndex, onSelectIndex, 
                 {/* Card */}
                 <div
                   onClick={() => onSelectIndex && onSelectIndex(i)}
-                  className={`aspect-video rounded-3xl flex flex-col relative cursor-pointer border-2 transition-all duration-300 overflow-hidden ${
+                  className={`aspect-video rounded-2xl flex flex-col relative cursor-pointer border-2 transition-all duration-200 overflow-hidden ${
                     isActiveCard
-                        ? 'bg-[#3D7B8C]/10 border-[#3D7B8C] shadow-[0_0_40px_rgba(61,123,140,0.3)] scale-[1.02] transform z-10'
-                        : 'bg-white/40 border-[#3D7B8C]/10 hover:border-[#3D7B8C]/20 hover:scale-[1.01] transform'
+                        ? 'bg-[#EDF4F6] border-[#3D7B8C] ring-2 ring-[#3D7B8C]/35 z-10'
+                        : 'bg-[#FAF6F0] border-[#E4E1DA] hover:border-[#3D7B8C]'
                   }`}
                 >
-                  <img src={img.url} className="w-full h-full object-contain bg-[#F7F7F7]" alt={`Slide ${i+1}`} />
+                  <img src={img.url} className="w-full h-full object-contain bg-[#FAF6F0]" alt={`Slide ${i+1}`} />
 
                   {/* Selection Indicator */}
                   <div 
                     onClick={(e) => { e.stopPropagation(); onToggleSelection && onToggleSelection(i); }}
-                    className={`absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    className={`absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
                       selectedIndices?.has(i) 
-                        ? 'bg-[#3D7B8C] text-white scale-110 shadow-lg border-[#3D7B8C]' 
-                        : 'border-2 border-neutral-600 text-transparent hover:border-neutral-500'
+                        ? 'bg-[#3D7B8C] text-white shadow-sm' 
+                        : 'bg-white/85 text-[#526075] hover:bg-white hover:text-[#1C355E] border border-[#E4E1DA] opacity-0 group-hover:opacity-100'
                     }`}
                   >
                     {selectedIndices?.has(i) ? <CheckCircle size={20} /> : <Circle size={20} />}
@@ -77,14 +111,14 @@ export default function ImageArrayViewer({ images, currentIndex, onSelectIndex, 
                 </div>
 
                 {/* Label Row */}
-                <div className="flex justify-between items-center px-4">
-                  <div className={`text-[10px] font-black uppercase tracking-[0.3em] transition-colors ${
-                    isActiveCard ? 'text-[#3D7B8C]' : 'text-neutral-400'
+                <div className="flex justify-between items-center px-3">
+                  <div className={`text-[10px] font-bold uppercase tracking-[0.25em] transition-colors ${
+                    isActiveCard ? 'text-[#3D7B8C]' : 'text-[#526075]'
                   }`}>
                     › IMAGE
                   </div>
-                  <div className={`text-[10px] font-black ${
-                    isActiveCard ? 'text-[#3D7B8C]/80' : 'text-neutral-700'
+                  <div className={`text-[10px] font-bold ${
+                    isActiveCard ? 'text-[#1C355E]' : 'text-[#526075]'
                   }`}>
                     SLIDE {i + 1}
                   </div>

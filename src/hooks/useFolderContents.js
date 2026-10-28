@@ -37,7 +37,7 @@ export function useFolderContents(libraryHandle, folderName, trigger) {
            });
            setFiles(fileList);
         }
-      } catch(err) {
+      } catch {
         console.warn(`Could not read generic folder: ${folderName}`);
       }
     };

@@ -1,18 +1,27 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
 :root {
-  --color-bg: #050505;
-  --color-surface: #121212;
-  --color-surface-hover: #1a1a1a;
-  --color-border: #1f1f1f;
+  /* Alongside Digital Official Brand Palette */
+  --color-bg: #FAF6F0;            /* Warm Ivory Canvas (Website Primary) */
+  --color-surface: #FFFFFF;       /* Crisp White Card Surface */
+  --color-surface-muted: #F0EBE1; /* Warm Sand / Linen Secondary Surface */
+  --color-surface-hover: #E6DFD3; /* Warm Sand Hover */
+  --color-border: #E4E1DA;        /* Clean Flat Warm Stone Border */
   
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #e5e5e5;
-  --color-text-muted: #a3a3a3;
+  --color-text-primary: #1C355E;   /* Brand Navy (11.9:1 on White, 11.1:1 on Ivory) */
+  --color-text-secondary: #334768; /* Deep Slate Navy */
+  --color-text-muted: #526075;     /* Accessible Slate Muted (5.2:1+ WCAG AA on all surfaces) */
   
-  --color-accent-teal: #3D7B8C;
-  --color-accent-copper: #C4956A;
-  --color-accent-green: #22c55e;
+  --color-accent-teal: #3D7B8C;        /* Accessible Sea Glass UI Accent */
+  --color-accent-teal-soft: #77A0A8;   /* Logo Sea Glass */
+  --color-accent-copper: #C4956A;      /* Logo Collaboration Copper */
+  --color-accent-copper-cta: #7A502A;  /* Accessible Website CTA Copper (7.25:1 with White) */
+  --color-accent-copper-hover: #654121;
+  --color-accent-green: #15803D;
 }
 
 /* Custom Scrollbar Utilities */
@@ -24,7 +33,7 @@
   scrollbar-width: none;
 }
 
-/* Global Modern Scrollbars */
+/* Global Modern Flat Scrollbars */
 ::-webkit-scrollbar {
   width: 6px !important;
   height: 6px !important;
@@ -40,7 +49,7 @@
   border-radius: 10px !important;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #3D7B8C !important;
+  background-color: #7A502A !important;
 }
 
 * {
@@ -53,7 +62,116 @@ body {
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #FFFFFF;
+  background-color: var(--color-bg);
   color: var(--color-text-primary);
   overscroll-behavior: none;
+}
+
+/* Alongside Digital Application Wordmark Gradients (matches Admin Centre) */
+.gradient-text {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background-image: linear-gradient(to right, #3D7B8C, #C4956A);
+}
+
+.presenter-wordmark {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background-image: linear-gradient(90deg, #1C355E 0%, #1C355E 26%, #3D7B8C 60%, #C4956A 100%);
+}
+
+/* Slide Transition Keyframes — GPU-composited (transform3d + opacity only) */
+@keyframes transitionCrossfadeIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes transitionCrossfadeOut {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes transitionFadeThroughOut {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  44% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.985);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.985);
+  }
+}
+@keyframes transitionFadeThroughIn {
+  0%,
+  46% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1.012);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes transitionSlideLeftIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(18%, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes transitionSlideLeftOut {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-18%, 0, 0);
+  }
+}
+
+@keyframes transitionFloatUpIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 12%, 0) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+@keyframes transitionFloatUpOut {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -12%, 0) scale(0.985);
+  }
 }

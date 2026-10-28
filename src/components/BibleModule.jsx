@@ -84,7 +84,7 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
   const [error, setError] = useState(null);
   const [localTranslations, setLocalTranslations] = useState([]);
   const [onlineTranslations, setOnlineTranslations] = useState([]);
-  const [onlineError, setOnlineError] = useState(false);
+  const [_onlineError, setOnlineError] = useState(false);
 
   // Autocomplete state
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -267,8 +267,8 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
   const ntBooks = BIBLE_BOOKS.filter(b => b.testament === 'NT');
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2 px-1">
+    <div className="flex flex-col gap-3.5">
+      <div className="text-[10px] font-bold text-[#526075] uppercase tracking-widest flex items-center gap-2 px-1">
         <Book size={14} className="text-[#3D7B8C]" />
         Bible Quick-Search
       </div>
@@ -277,7 +277,7 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
       <select 
         value={translation}
         onChange={(e) => setTranslation(e.target.value)}
-        className="w-full bg-white border border-[#3D7B8C]/10 rounded-xl text-sm font-bold text-[#1C355E] px-4 py-3 focus:ring-2 focus:ring-[#3D7B8C] outline-none transition shadow-inner appearance-none cursor-pointer"
+        className="w-full bg-white border border-[#E4E1DA] rounded-xl text-sm font-bold text-[#1C355E] px-4 py-2.5 focus:border-[#3D7B8C] outline-none transition-colors cursor-pointer"
       >
         {onlineTranslations.length > 0 ? (
           <optgroup label="YouVersion">
@@ -312,7 +312,7 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
           <input 
             ref={inputRef}
             type="text" 
-            placeholder="e.g. Psalm 23, John 3:16, Genesis 1-2"
+            placeholder="e.g. Psalm 23, John 3:16"
             value={reference}
             onChange={(e) => {
               setReference(e.target.value);
@@ -321,28 +321,28 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
             }}
             onFocus={() => { if (reference.trim()) setShowSuggestions(true); }}
             onKeyDown={handleKeyDown}
-            className="w-full bg-white border border-[#3D7B8C]/10 rounded-xl text-sm font-medium text-[#1C355E] pl-10 pr-4 py-3 outline-none focus:border-[#3D7B8C] transition shadow-inner"
+            className="w-full bg-white border border-[#E4E1DA] rounded-xl text-sm font-medium text-[#1C355E] placeholder:text-[#526075]/70 pl-10 pr-4 py-2.5 outline-none focus:border-[#3D7B8C] transition-colors"
           />
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#526075]" />
           
           {/* Autocomplete Dropdown */}
           {showSuggestions && suggestions.length > 0 && (
             <div 
               ref={suggestionsRef}
-              className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#3D7B8C]/20 rounded-xl shadow-2xl z-50 overflow-hidden"
+              className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E4E1DA] rounded-xl shadow-lg z-50 overflow-hidden"
             >
               {suggestions.map((book, i) => (
                 <button
                   key={book.name}
                   onClick={() => handleSuggestionClick(book)}
-                  className={`w-full px-4 py-2.5 text-left text-sm font-medium flex items-center justify-between transition-colors ${
+                  className={`w-full px-4 py-2.5 text-left text-sm font-medium flex items-center justify-between transition-colors cursor-pointer ${
                     i === highlightIdx 
-                      ? 'bg-[#3D7B8C]/30 text-[#1C355E]' 
-                      : 'text-neutral-700 hover:bg-[#F7F7F7]'
+                      ? 'bg-[#EDF4F6] text-[#1C355E]' 
+                      : 'text-[#1C355E] hover:bg-[#FAF6F0]'
                   }`}
                 >
                   <span>{book.name}</span>
-                  <span className="text-[10px] text-neutral-400 font-bold">{book.chapters} ch</span>
+                  <span className="text-[10px] text-[#526075] font-bold">{book.chapters} ch</span>
                 </button>
               ))}
             </div>
@@ -353,28 +353,28 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
           type="button"
           onClick={() => handleSearch()}
           disabled={loading || !reference.trim()}
-          className="bg-[#3D7B8C] hover:bg-[#3D7B8C] disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 rounded-xl font-extrabold transition flex items-center justify-center shadow-lg"
+          className="bg-[#7A502A] hover:bg-[#654121] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 rounded-xl text-xs font-bold tracking-wider transition-colors flex items-center justify-center shadow-sm cursor-pointer"
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : 'FIND'}
         </button>
       </div>
 
-      {error && <div className="text-red-700 font-medium text-xs text-center mt-1 bg-red-50 p-3 rounded-lg border border-red-200 shadow-sm">{error}</div>}
+      {error && <div className="text-[#991B1B] font-medium text-xs text-center mt-1 bg-rose-50 p-3 rounded-lg border border-rose-200">{error}</div>}
 
       {/* ─── Browse-Style Picker ─── */}
-      <div className="mt-1 relative" ref={browserRef}>
+      <div className="mt-0.5 relative" ref={browserRef}>
         <button 
           onClick={() => setShowBrowser(!showBrowser)}
-          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all shadow-inner ${showBrowser ? 'bg-[#3D7B8C]/20 border-[#3D7B8C]/50 text-[#1C355E]' : 'bg-white border-[#3D7B8C]/10 text-neutral-400 hover:bg-[#F7F7F7] hover:text-[#1C355E]'}`}
+          className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border transition-colors cursor-pointer ${showBrowser ? 'bg-[#EDF4F6] border-[#3D7B8C]/40 text-[#1C355E]' : 'bg-white border-[#E4E1DA] text-[#526075] hover:bg-[#F0EBE1] hover:text-[#1C355E]'}`}
         >
           <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest flex-1 text-left line-clamp-1">
-            <Book size={14} className={showBrowser ? "text-[#3D7B8C]" : "text-[#3D7B8C]"} />
+            <Book size={14} className="text-[#3D7B8C]" />
             {browseBook ? browseBook.name : "Browse Books"}
           </span>
           {browseBook && showBrowser ? (
             <div 
               onClick={(e) => { e.stopPropagation(); setBrowseBook(null); }}
-              className="text-[10px] font-bold bg-[#F7F7F7] hover:bg-neutral-200 text-neutral-700 px-2 py-1 rounded transition flex items-center gap-1"
+              className="text-[10px] font-bold bg-white hover:bg-[#FAF6F0] text-[#1C355E] border border-[#E4E1DA] px-2 py-1 rounded transition-colors flex items-center gap-1"
             >
               <ChevronLeft size={12} /> Back
             </div>
@@ -384,12 +384,12 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
         </button>
 
         {showBrowser && (
-          <div className="absolute top-full left-0 right-0 mt-2 z-40 bg-white border border-[#3D7B8C]/20/80 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="absolute top-full left-0 right-0 mt-2 z-40 bg-white border border-[#E4E1DA] rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
             {!browseBook ? (
               /* ── Book List ── */
               <div className="max-h-[320px] overflow-y-auto custom-scrollbar">
                 {/* Old Testament */}
-                <div className="px-3 py-2 text-[9px] font-extrabold text-neutral-600 uppercase tracking-[0.2em] border-b border-[#3D7B8C]/10/50 bg-white/80 sticky top-0 z-10">
+                <div className="px-3 py-2 text-[9px] font-extrabold text-[#526075] uppercase tracking-[0.2em] border-b border-[#E4E1DA] bg-[#FAF6F0] sticky top-0 z-10">
                   Old Testament
                 </div>
                 <div className="grid grid-cols-2 gap-px p-1">
@@ -397,16 +397,16 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
                     <button
                       key={book.name}
                       onClick={() => setBrowseBook(book)}
-                      className="text-left px-3 py-2 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-[#3D7B8C]/20 hover:text-[#1C355E] transition-colors flex items-center justify-between group"
+                      className="text-left px-3 py-2 rounded-lg text-xs font-semibold text-[#1C355E] hover:bg-[#EDF4F6] transition-colors flex items-center justify-between group cursor-pointer"
                     >
                       <span className="truncate">{book.name}</span>
-                      <ChevronRight size={12} className="text-neutral-700 group-hover:text-[#3D7B8C] transition-colors flex-shrink-0" />
+                      <ChevronRight size={12} className="text-[#526075] group-hover:text-[#3D7B8C] transition-colors flex-shrink-0" />
                     </button>
                   ))}
                 </div>
 
                 {/* New Testament */}
-                <div className="px-3 py-2 text-[9px] font-extrabold text-neutral-600 uppercase tracking-[0.2em] border-b border-t border-[#3D7B8C]/10/50 bg-white/80 sticky top-0 z-10">
+                <div className="px-3 py-2 text-[9px] font-extrabold text-[#526075] uppercase tracking-[0.2em] border-b border-t border-[#E4E1DA] bg-[#FAF6F0] sticky top-0 z-10">
                   New Testament
                 </div>
                 <div className="grid grid-cols-2 gap-px p-1">
@@ -414,10 +414,10 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
                     <button
                       key={book.name}
                       onClick={() => setBrowseBook(book)}
-                      className="text-left px-3 py-2 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-[#3D7B8C]/20 hover:text-[#1C355E] transition-colors flex items-center justify-between group"
+                      className="text-left px-3 py-2 rounded-lg text-xs font-semibold text-[#1C355E] hover:bg-[#EDF4F6] transition-colors flex items-center justify-between group cursor-pointer"
                     >
                       <span className="truncate">{book.name}</span>
-                      <ChevronRight size={12} className="text-neutral-700 group-hover:text-[#3D7B8C] transition-colors flex-shrink-0" />
+                      <ChevronRight size={12} className="text-[#526075] group-hover:text-[#3D7B8C] transition-colors flex-shrink-0" />
                     </button>
                   ))}
                 </div>
@@ -425,10 +425,10 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
             ) : (
               /* ── Chapter Grid ── */
               <div className="flex flex-col max-h-[320px]">
-                <div className="px-3 py-2.5 text-sm font-extrabold text-[#1C355E] border-b border-[#3D7B8C]/10/50 bg-white/80 flex items-center gap-2">
+                <div className="px-3 py-2.5 text-sm font-extrabold text-[#1C355E] border-b border-[#E4E1DA] bg-[#FAF6F0] flex items-center gap-2">
                   <Book size={14} className="text-[#3D7B8C]" />
                   {browseBook.name}
-                  <span className="text-[10px] text-neutral-400 font-bold ml-auto">{browseBook.chapters} chapters</span>
+                  <span className="text-[10px] text-[#526075] font-bold ml-auto">{browseBook.chapters} chapters</span>
                 </div>
                 <div className="p-2 grid grid-cols-5 gap-1.5 overflow-y-auto custom-scrollbar">
                   {Array.from({ length: browseBook.chapters }, (_, i) => i + 1).map(ch => (
@@ -436,7 +436,7 @@ export default function BibleModule({ libraryHandle, systemTrigger, onSelectDocu
                       key={ch}
                       onClick={() => handleBrowseChapter(ch)}
                       disabled={loading}
-                      className="aspect-square flex items-center justify-center rounded-lg text-sm font-bold text-neutral-700 bg-white/50 hover:bg-[#3D7B8C] hover:text-white active:scale-95 transition-all duration-150 shadow-sm disabled:opacity-50"
+                      className="aspect-square flex items-center justify-center rounded-lg text-sm font-bold text-[#1C355E] bg-[#FAF6F0] hover:bg-[#1C355E] hover:text-white transition-colors duration-150 disabled:opacity-50 cursor-pointer"
                     >
                       {ch}
                     </button>

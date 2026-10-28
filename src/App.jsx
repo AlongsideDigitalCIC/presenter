@@ -1,10 +1,8 @@
 import { isTauri } from './utils/env.js';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Peer } from 'peerjs'
 import { ExternalLink, Check, Settings, Plus } from 'lucide-react'
 import FileSystemSetup from './components/FileSystemSetup'
-import { getStoredDirectoryHandle } from './utils/fileSystem'
+import { clearStoredDirectoryHandle } from './utils/fileSystem';
 import { TauriDirectoryHandle } from './utils/TauriFileSystem';
 import Sidebar from './components/Sidebar'
 import SettingsView from './components/SettingsView'
@@ -22,11 +20,12 @@ import { parseSongMarkdown } from './utils/songParser';
 import { parseLiturgyMarkdown } from './utils/liturgyParser';
 import { parseBibleText } from './services/bibleService';
 import ConfirmModal from './components/ConfirmModal'
-import { verifyPermission, reResolveMedia, formatVerseRanges, getYoutubeEmbedUrl } from './utils/media'
+import { reResolveMedia, formatVerseRanges, getYoutubeEmbedUrl } from './utils/media'
 import OutputScreen from './components/OutputScreen'
 import CentralAudioPlayer from './components/CentralAudioPlayer'
 import RemoteControl from './components/RemoteControl'
 import { addSongPlay } from './services/historyService'
+import { resolveTargetMonitor } from './utils/monitorUtils'
 
 const TABS = ['Service', 'Songs', 'Images', 'Bible', 'Liturgy', 'Videos', 'Music'];
 
@@ -57,37 +56,37 @@ function FolderExplorer({ folderName, handle, onSelectItem, onBack }) {
     }, [handle]);
 
     return (
-        <div className="w-full h-full flex flex-col items-center bg-[#F7F7F7] rounded-2xl border border-[#3D7B8C]/10 p-8 shadow-inner overflow-hidden relative">
-             <div className="absolute top-4 left-4 z-10 text-[10px] font-bold uppercase tracking-widest text-neutral-400 flex items-center gap-2">
-                 <button onClick={onBack} className="hover:bg-[#F7F7F7] p-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-[#3D7B8C]">
+        <div className="w-full h-full flex flex-col items-center bg-[#FAF6F0] rounded-2xl border border-[#E4E1DA] p-8 overflow-hidden relative">
+             <div className="absolute top-4 left-4 z-10 text-[10px] font-bold uppercase tracking-widest text-[#526075] flex items-center gap-2">
+                 <button onClick={onBack} className="hover:bg-[#F0EBE1] p-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-[#3D7B8C]">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                     BACK
                  </button>
-                 <span className="opacity-20 mx-1">|</span>
+                 <span className="text-[#E4E1DA] mx-1">|</span>
                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#3D7B8C]"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-1.2-1.8A2 2 0 0 0 7.55 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
                 {folderName}
              </div>
                <div className="w-full h-full pt-12 flex flex-col">
                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
-                       {isLoading && <div className="text-neutral-400 italic p-4 text-center text-sm animate-pulse">Scanning folder...</div>}
+                       {isLoading && <div className="text-[#526075] italic p-4 text-center text-sm animate-pulse">Scanning folder...</div>}
                        
                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
                            {!isLoading && files.map(f => (
                                <div 
                                    key={f.name}
                                    onClick={() => onSelectItem(f)}
-                                   className="group aspect-square p-4 bg-white/50 border border-[#3D7B8C]/10/80 rounded-2xl hover:bg-[#F7F7F7] hover:border-[#3D7B8C]/50 cursor-pointer flex flex-col items-center justify-center gap-3 transition-all text-sm text-neutral-700 shadow hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] hover:-translate-y-1"
+                                   className="group aspect-square p-4 bg-white border border-[#E4E1DA] rounded-2xl hover:bg-[#FAF6F0] hover:border-[#3D7B8C] cursor-pointer flex flex-col items-center justify-center gap-3 transition-colors text-sm text-[#1C355E] shadow-sm"
                                >
                                    {f.isDirectory 
-                                       ? <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#3D7B8C]/80 group-hover:text-[#3D7B8C] transition-colors flex-shrink-0"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-1.2-1.8A2 2 0 0 0 7.55 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
-                                       : <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400/70 group-hover:text-neutral-700 transition-colors flex-shrink-0"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                       ? <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#3D7B8C] transition-colors flex-shrink-0"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-1.2-1.8A2 2 0 0 0 7.55 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                                       : <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#526075] group-hover:text-[#1C355E] transition-colors flex-shrink-0"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
                                    }
                                    <span className="truncate w-full text-center text-[11px] font-medium leading-tight px-1">{f.name}</span>
                                </div>
                            ))}
                        </div>
                        
-                       {!isLoading && files.length === 0 && <div className="text-neutral-400 italic p-4 text-center text-sm col-span-full">Empty Folder</div>}
+                       {!isLoading && files.length === 0 && <div className="text-[#526075] italic p-4 text-center text-sm col-span-full">Empty Folder</div>}
                    </div>
                </div>
         </div>
@@ -95,34 +94,41 @@ function FolderExplorer({ folderName, handle, onSelectItem, onBack }) {
 }
 
 const initialLibraryPath = localStorage.getItem('presenter-library-path');
-const initialHandle = initialLibraryPath ? new TauriDirectoryHandle(initialLibraryPath.replace(/\\/g, '/'), 'Presenter') : null;
+const initialHandle = (isTauri() && initialLibraryPath) ? new TauriDirectoryHandle(initialLibraryPath.replace(/\\/g, '/'), 'Presenter') : null;
 
 function App() {
   const [libraryHandle, setLibraryHandle] = useState(initialHandle)
   
   const handleChangeLibraryPath = async () => {
       try {
-         localStorage.removeItem('presenter-library-path');
+         await clearStoredDirectoryHandle();
          setLibraryHandle(null);
       } catch (err) {
          console.error('Failed to clear library handle', err);
       }
   };
 
+  useEffect(() => {
+    if (isTauri() && libraryHandle?.path) {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('allow_library_folder', { path: libraryHandle.path }).catch(() => {});
+      }).catch(() => {});
+    }
+  }, [libraryHandle]);
+
   const projectorWindowRef = useRef(null);
-  const peerRef = useRef(null);
-  // const connectionsRef = useRef([]);
   const wsRef = useRef(null);
+  const pinRateLimitRef = useRef(new Map()); // clientId -> { attempts: number, lockedUntil: number }
   const livePayloadRef = useRef(null);
   const serviceItemsRef = useRef([]);
   const projectorTimeoutRef = useRef(null);
   
   // Routing State
   const params = new URLSearchParams(window.location.search);
-  const [isProjectorView, setIsProjectorView] = useState(!!params.get('projector'));
-  const [isNetworkView, setIsNetworkView] = useState(!!params.get('network'));
+  const isProjectorView = !!params.get('projector');
+  const isNetworkView = !!params.get('network');
   const [projectorConnected, setProjectorConnected] = useState(false);
-  const [remoteControlRoom, setRemoteControlRoom] = useState(() => {
+  const remoteControlRoom = (() => {
       if (params.has('remoteControl')) {
           return params.get('remoteControl') || 'default';
       }
@@ -133,26 +139,37 @@ function App() {
           }
       }
       return null;
-  });
-  const [roomId, setRoomId] = useState(null);
+  })();
+  const roomId = null;
   const [networkPayload, setNetworkPayload] = useState(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedMonitor, setSelectedMonitor] = useState(null);
   
   // App Global Data State
+  const [isLoaded, setIsLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState('Service');
   const [selectedItem, setSelectedItem] = useState(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [selectedIndices, setSelectedIndices] = useState(new Set());
   const [serviceItems, setServiceItems] = useState([]); 
-  useEffect(() => { serviceItemsRef.current = serviceItems; }, [serviceItems]);
+  useEffect(() => { 
+    serviceItemsRef.current = serviceItems; 
+    if (isLoaded) {
+      import('idb-keyval').then(({ set }) => {
+        set('presenter_service_state', serviceItems).catch(err => {
+          console.warn("Failed to auto-save service state", err);
+        });
+      }).catch(() => {});
+    }
+  }, [serviceItems, isLoaded]);
   const [playedItems, setPlayedItems] = useState(new Set());
   const [stickyAudioItem, setStickyAudioItem] = useState(null);
   const [editingSong, setEditingSong] = useState(null);
   const [linesPerSlide, setLinesPerSlide] = useState(2);
+  const [liturgyLinesPerSlide, setLiturgyLinesPerSlide] = useState(2);
+  const [bibleVersesPerSlide, setBibleVersesPerSlide] = useState(1);
   const [presentationPaused, setPresentationPaused] = useState(true);
   const [slideshowInterval, setSlideshowInterval] = useState(5);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showOfflineConfirm, setShowOfflineConfirm] = useState(false);
   const [showAddedFeedback, setShowAddedFeedback] = useState(false);
@@ -161,15 +178,148 @@ function App() {
   const [isLive, setIsLive] = useState(false);
   const [isBlackScreen, setIsBlackScreen] = useState(false);
   const [isShowLogo, setIsShowLogo] = useState(false);
-  const [setIsClearText] = useState(false);
   const [logoUrl, setLogoUrl] = useState(null);
   const [livePayload, setLivePayload] = useState(null);
   const [playbackStatus, setPlaybackStatus] = useState({ time: 0, duration: 0, paused: undefined });
   const [churchName, setChurchName] = useState("Alongside Digital - Presenter");
   const [displayFont, setDisplayFont] = useState("Inter");
+
+  // Screen Overlays State (Ad Hoc Announcements & Countdown Timer)
+  const [announcement, setAnnouncement] = useState({
+    active: false,
+    text: '',
+    autoDismissSeconds: 0,
+    timestamp: null
+  });
+
+  const [countdown, setCountdown] = useState({
+    active: false,
+    running: false,
+    targetTimeMs: null,
+    initialSeconds: 300,
+    remainingSeconds: 300,
+    title: 'Service starts in',
+    endMessage: 'Welcome! Service starting shortly'
+  });
+
+  const [overlaySettings, setOverlaySettings] = useState({
+    announcement: {
+      position: 'bottom', // 'bottom' | 'top' | 'floating'
+      bgColor: '#1C355E',
+      textColor: '#FFFFFF',
+      bgOpacity: 0.95,
+      textSize: 1.0,
+      fontSize: 'medium', // 'small' | 'medium' | 'large'
+      bannerStyle: 'full-width' // 'full-width' | 'rounded-pill'
+    },
+    countdown: {
+      position: 'center', // 'center' | 'bottom-right' | 'bottom-left' | 'top-right'
+      style: 'boxed', // 'boxed' | 'clean' | 'minimal'
+      bgColor: '#1C355E',
+      textColor: '#FFFFFF',
+      bgOpacity: 0.85,
+      defaultMinutes: 5,
+      defaultTitle: 'Service starts in',
+      endMessage: 'Welcome! Service starting shortly',
+      headerTextSize: 1.4,
+      digitsSize: 1.0,
+      textSize: 1.25
+    }
+  });
+
+  // Auto-dismiss handler for announcements
+  useEffect(() => {
+    if (!announcement?.active || !announcement?.autoDismissSeconds || announcement.autoDismissSeconds <= 0) return;
+    const timer = setTimeout(() => {
+      setAnnouncement(prev => ({ ...prev, active: false }));
+    }, announcement.autoDismissSeconds * 1000);
+    return () => clearTimeout(timer);
+  }, [announcement?.active, announcement?.timestamp, announcement?.autoDismissSeconds]);
+
+  const handleUpdateOverlaySettings = (updater) => {
+    setOverlaySettings(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      import('idb-keyval').then(({ set }) => {
+        set('presenter_overlay_settings', next).catch(() => {});
+      }).catch(() => {});
+      return next;
+    });
+  };
+  const [displaySettings, setDisplaySettings] = useState({
+    transitionEnabled: true,
+    transitionType: 'crossfade', // 'crossfade' | 'fade_through' | 'slide_left' | 'float_up'
+    transitionDuration: 400,
+    textScale: 1,
+    backgrounds: {
+      song: {
+        bgType: 'color', // 'color' | 'image' | 'video'
+        bgColor: '#000000',
+        bgImageUrl: null,
+        bgVideoUrl: null,
+        bgDim: 0.3,
+        bgVideoLoop: true,
+      },
+      bible: {
+        bgType: 'color',
+        bgColor: '#161d2f',
+        bgImageUrl: null,
+        bgVideoUrl: null,
+        bgDim: 0.3,
+        bgVideoLoop: true,
+      },
+      liturgy: {
+        bgType: 'color',
+        bgColor: '#111827',
+        bgImageUrl: null,
+        bgVideoUrl: null,
+        bgDim: 0.3,
+        bgVideoLoop: true,
+      },
+      countdown: {
+        bgType: 'none', // 'none' | 'color' | 'image' | 'video'
+        bgColor: '#0B132B',
+        bgImageUrl: null,
+        bgVideoUrl: null,
+        bgDim: 0.3,
+        bgVideoLoop: true,
+      }
+    },
+    // Top-level fallbacks
+    bgType: 'color',
+    bgColor: '#000000',
+    bgImageUrl: null,
+    bgVideoUrl: null,
+    bgDim: 0.3,
+    bgVideoLoop: true
+  });
+  const [ccliSettings, setCcliSettings] = useState({
+    licenseNumber: '',
+    displayMode: 'first_slide', // 'first_slide' | 'last_slide' | 'both' | 'all' | 'off'
+    position: 'bottom-left' // 'bottom-left' | 'bottom-center' | 'bottom-right'
+  });
   const [remotePassword, setRemotePassword] = useState('');
   const remotePasswordRef = useRef('');
   const authenticatedClientsRef = useRef(new Set());
+  const backgroundBlobsRef = useRef({
+    songVidBlob: null,
+    songImgBlob: null,
+    bibleVidBlob: null,
+    bibleImgBlob: null,
+    liturgyVidBlob: null,
+    liturgyImgBlob: null,
+    countdownVidBlob: null,
+    countdownImgBlob: null
+  });
+
+  const handleUpdateCcliSettings = (updater) => {
+    setCcliSettings(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+      import('idb-keyval').then(({ set }) => {
+        set('presenter_ccli_settings', next);
+      }).catch(() => {});
+      return next;
+    });
+  };
 
   useEffect(() => {
     remotePasswordRef.current = remotePassword;
@@ -183,9 +333,6 @@ function App() {
 
   // Handshake and Init
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const roomFromUrl = params.get('room');
-
     const init = async () => {
       try {
         // 1. Directory Handle (Synchronous LocalStorage was handled above)
@@ -196,11 +343,24 @@ function App() {
             const { get } = await import('idb-keyval');
             
             if (!handle) {
-                const idbPath = await get('presenter_library_path_idb');
-                if (idbPath) {
-                    localStorage.setItem('presenter-library-path', idbPath);
-                    handle = new TauriDirectoryHandle(idbPath.replace(/\\/g, '/'), 'Presenter');
-                    setLibraryHandle(handle);
+                if (isTauri()) {
+                    const idbPath = await get('presenter_library_path_idb');
+                    if (idbPath) {
+                        localStorage.setItem('presenter-library-path', idbPath);
+                        handle = new TauriDirectoryHandle(idbPath.replace(/\\/g, '/'), 'Presenter');
+                        setLibraryHandle(handle);
+                    }
+                } else {
+                    const browserHandle = await get('presenter_browser_directory_handle');
+                    if (browserHandle) {
+                        try {
+                            const mode = { mode: 'readwrite' };
+                            if ((await browserHandle.queryPermission?.(mode)) === 'granted') {
+                                handle = browserHandle;
+                                setLibraryHandle(handle);
+                            }
+                        } catch { /* ignore */ }
+                    }
                 }
             }
 
@@ -224,6 +384,123 @@ function App() {
                 setRemotePassword(savedPassword);
                 remotePasswordRef.current = savedPassword;
             }
+
+            const savedFont = await get('presenter_display_font');
+            if (savedFont) setDisplayFont(savedFont);
+
+            const savedChurch = await get('presenter_church_name');
+            if (savedChurch) setChurchName(savedChurch);
+
+            const savedDisplay = await get('presenter_display_settings');
+            const songImgBlob = (await get('presenter_bg_image_blob_song')) || (await get('presenter_bg_image_blob'));
+            const songVidBlob = (await get('presenter_bg_video_blob_song')) || (await get('presenter_bg_video_blob'));
+            const bibleImgBlob = await get('presenter_bg_image_blob_bible');
+            const bibleVidBlob = await get('presenter_bg_video_blob_bible');
+            const liturgyImgBlob = await get('presenter_bg_image_blob_liturgy');
+            const liturgyVidBlob = await get('presenter_bg_video_blob_liturgy');
+            const countdownImgBlob = await get('presenter_bg_image_blob_countdown');
+            const countdownVidBlob = await get('presenter_bg_video_blob_countdown');
+
+            backgroundBlobsRef.current = {
+              songVidBlob,
+              songImgBlob,
+              bibleVidBlob,
+              bibleImgBlob,
+              liturgyVidBlob,
+              liturgyImgBlob,
+              countdownVidBlob,
+              countdownImgBlob
+            };
+
+            const makeUrl = (blob) => {
+              if (!blob) return null;
+              try { return URL.createObjectURL(blob); } catch { return null; }
+            };
+
+            const songImgUrl = makeUrl(songImgBlob);
+            const songVidUrl = makeUrl(songVidBlob);
+            const bibleImgUrl = makeUrl(bibleImgBlob);
+            const bibleVidUrl = makeUrl(bibleVidBlob);
+            const liturgyImgUrl = makeUrl(liturgyImgBlob);
+            const liturgyVidUrl = makeUrl(liturgyVidBlob);
+            const countdownImgUrl = makeUrl(countdownImgBlob);
+            const countdownVidUrl = makeUrl(countdownVidBlob);
+
+            const defaultSong = {
+              bgType: savedDisplay?.backgrounds?.song?.bgType || savedDisplay?.bgType || 'color',
+              bgColor: savedDisplay?.backgrounds?.song?.bgColor || savedDisplay?.bgColor || '#000000',
+              bgImageUrl: songImgUrl,
+              bgVideoUrl: songVidUrl,
+              bgDim: savedDisplay?.backgrounds?.song?.bgDim ?? savedDisplay?.bgDim ?? 0.3,
+              bgVideoLoop: savedDisplay?.backgrounds?.song?.bgVideoLoop ?? savedDisplay?.bgVideoLoop ?? true,
+            };
+
+            const defaultBible = {
+              bgType: savedDisplay?.backgrounds?.bible?.bgType || 'color',
+              bgColor: savedDisplay?.backgrounds?.bible?.bgColor || '#161d2f',
+              bgImageUrl: bibleImgUrl,
+              bgVideoUrl: bibleVidUrl,
+              bgDim: savedDisplay?.backgrounds?.bible?.bgDim ?? 0.3,
+              bgVideoLoop: savedDisplay?.backgrounds?.bible?.bgVideoLoop ?? true,
+            };
+
+            const defaultLiturgy = {
+              bgType: savedDisplay?.backgrounds?.liturgy?.bgType || 'color',
+              bgColor: savedDisplay?.backgrounds?.liturgy?.bgColor || '#111827',
+              bgImageUrl: liturgyImgUrl,
+              bgVideoUrl: liturgyVidUrl,
+              bgDim: savedDisplay?.backgrounds?.liturgy?.bgDim ?? 0.3,
+              bgVideoLoop: savedDisplay?.backgrounds?.liturgy?.bgVideoLoop ?? true,
+            };
+
+            const defaultCountdown = {
+              bgType: savedDisplay?.backgrounds?.countdown?.bgType || 'none',
+              bgColor: savedDisplay?.backgrounds?.countdown?.bgColor || '#0B132B',
+              bgImageUrl: countdownImgUrl,
+              bgVideoUrl: countdownVidUrl,
+              bgDim: savedDisplay?.backgrounds?.countdown?.bgDim ?? 0.3,
+              bgVideoLoop: savedDisplay?.backgrounds?.countdown?.bgVideoLoop ?? true,
+            };
+
+            setDisplaySettings(prev => ({
+              ...prev,
+              transitionEnabled: savedDisplay?.transitionEnabled ?? prev.transitionEnabled,
+              transitionType: savedDisplay?.transitionType || prev.transitionType,
+              transitionDuration: savedDisplay?.transitionDuration || prev.transitionDuration,
+              textScale: savedDisplay?.textScale ?? prev.textScale ?? 1,
+              backgrounds: {
+                song: defaultSong,
+                bible: defaultBible,
+                liturgy: defaultLiturgy,
+                countdown: defaultCountdown
+              },
+              bgType: defaultSong.bgType,
+              bgColor: defaultSong.bgColor,
+              bgImageUrl: defaultSong.bgImageUrl,
+              bgVideoUrl: defaultSong.bgVideoUrl,
+              bgDim: defaultSong.bgDim,
+              bgVideoLoop: defaultSong.bgVideoLoop
+            }));
+
+            const savedCcli = await get('presenter_ccli_settings');
+            if (savedCcli) {
+              setCcliSettings(prev => ({ ...prev, ...savedCcli }));
+            }
+
+            const savedOverlays = await get('presenter_overlay_settings');
+            if (savedOverlays) {
+              setOverlaySettings(prev => ({
+                announcement: { ...prev.announcement, ...(savedOverlays.announcement || {}) },
+                countdown: { ...prev.countdown, ...(savedOverlays.countdown || {}) }
+              }));
+            }
+
+            const savedLines = await get('presenter_lines_settings');
+            if (savedLines) {
+              if (savedLines.song) setLinesPerSlide(savedLines.song);
+              if (savedLines.liturgy) setLiturgyLinesPerSlide(savedLines.liturgy);
+              if (savedLines.bible) setBibleVersesPerSlide(savedLines.bible);
+            }
         } catch (idbErr) {
             console.error("IDB Restoration Failed (non-fatal):", idbErr);
         }
@@ -236,6 +513,238 @@ function App() {
     }
     init()
   }, [])
+
+  const handleUpdateDisplaySettings = (updater, category = null) => {
+    setDisplaySettings(prev => {
+      let updated;
+      if (category) {
+        const currentCatBg = prev.backgrounds?.[category] || {
+          bgType: 'color',
+          bgColor: '#000000',
+          bgImageUrl: null,
+          bgVideoUrl: null,
+          bgDim: 0.3,
+          bgVideoLoop: true
+        };
+        const updatedCat = typeof updater === 'function' ? updater(currentCatBg) : { ...currentCatBg, ...updater };
+        const newBackgrounds = {
+          ...(prev.backgrounds || {}),
+          [category]: updatedCat
+        };
+        updated = {
+          ...prev,
+          backgrounds: newBackgrounds
+        };
+        if (category === 'song') {
+          updated.bgType = updatedCat.bgType;
+          updated.bgColor = updatedCat.bgColor;
+          updated.bgDim = updatedCat.bgDim;
+          updated.bgVideoLoop = updatedCat.bgVideoLoop;
+          updated.bgImageUrl = updatedCat.bgImageUrl;
+          updated.bgVideoUrl = updatedCat.bgVideoUrl;
+        }
+      } else {
+        updated = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+      }
+
+      // Persist serializable state to IDB
+      import('idb-keyval').then(({ set }) => {
+        set('presenter_display_settings', {
+          bgType: updated.bgType,
+          bgColor: updated.bgColor,
+          bgDim: updated.bgDim,
+          bgVideoLoop: updated.bgVideoLoop,
+          transitionEnabled: updated.transitionEnabled,
+          transitionType: updated.transitionType,
+          transitionDuration: updated.transitionDuration,
+          textScale: updated.textScale ?? 1,
+          backgrounds: {
+            song: {
+              bgType: updated.backgrounds?.song?.bgType || 'color',
+              bgColor: updated.backgrounds?.song?.bgColor || '#000000',
+              bgDim: updated.backgrounds?.song?.bgDim ?? 0.3,
+              bgVideoLoop: updated.backgrounds?.song?.bgVideoLoop ?? true,
+            },
+            bible: {
+              bgType: updated.backgrounds?.bible?.bgType || 'color',
+              bgColor: updated.backgrounds?.bible?.bgColor || '#161d2f',
+              bgDim: updated.backgrounds?.bible?.bgDim ?? 0.3,
+              bgVideoLoop: updated.backgrounds?.bible?.bgVideoLoop ?? true,
+            },
+            liturgy: {
+              bgType: updated.backgrounds?.liturgy?.bgType || 'color',
+              bgColor: updated.backgrounds?.liturgy?.bgColor || '#111827',
+              bgDim: updated.backgrounds?.liturgy?.bgDim ?? 0.3,
+              bgVideoLoop: updated.backgrounds?.liturgy?.bgVideoLoop ?? true,
+            },
+            countdown: {
+              bgType: updated.backgrounds?.countdown?.bgType || 'none',
+              bgColor: updated.backgrounds?.countdown?.bgColor || '#0B132B',
+              bgDim: updated.backgrounds?.countdown?.bgDim ?? 0.3,
+              bgVideoLoop: updated.backgrounds?.countdown?.bgVideoLoop ?? true,
+            }
+          }
+        });
+      });
+      return updated;
+    });
+  };
+
+  const notifyBgUpdate = (category = null, mediaType = null, blob = null) => {
+    try {
+      const bc = new BroadcastChannel('presenter-projector-hub');
+      if (category && mediaType) {
+        bc.postMessage({ type: 'bg-blob-update', category, mediaType, blob, blobs: backgroundBlobsRef.current });
+      } else {
+        bc.postMessage({ type: 'bg-update', blobs: backgroundBlobsRef.current });
+      }
+      bc.close();
+    } catch { /* ignore */ }
+  };
+
+  const handleSaveBackgroundImage = async (file, category = 'song') => {
+    if (category === 'song') backgroundBlobsRef.current.songImgBlob = file;
+    if (category === 'bible') backgroundBlobsRef.current.bibleImgBlob = file;
+    if (category === 'liturgy') backgroundBlobsRef.current.liturgyImgBlob = file;
+    if (category === 'countdown') backgroundBlobsRef.current.countdownImgBlob = file;
+
+    const prevUrl = displaySettings.backgrounds?.[category]?.bgImageUrl;
+    if (prevUrl && prevUrl.startsWith('blob:')) {
+      try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+    }
+    const url = URL.createObjectURL(file);
+    const { set } = await import('idb-keyval');
+    await set(`presenter_bg_image_blob_${category}`, file);
+    if (category === 'song') {
+      await set('presenter_bg_image_blob', file);
+    }
+    handleUpdateDisplaySettings(prevCat => ({
+      ...prevCat,
+      bgType: 'image',
+      bgImageUrl: url
+    }), category);
+    notifyBgUpdate(category, 'image', file);
+  };
+
+  const handleClearBackgroundImage = async (category = 'song') => {
+    if (category === 'song') backgroundBlobsRef.current.songImgBlob = null;
+    if (category === 'bible') backgroundBlobsRef.current.bibleImgBlob = null;
+    if (category === 'liturgy') backgroundBlobsRef.current.liturgyImgBlob = null;
+    if (category === 'countdown') backgroundBlobsRef.current.countdownImgBlob = null;
+
+    const prevUrl = displaySettings.backgrounds?.[category]?.bgImageUrl;
+    if (prevUrl && prevUrl.startsWith('blob:')) {
+      try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+    }
+    const { del } = await import('idb-keyval');
+    await del(`presenter_bg_image_blob_${category}`);
+    if (category === 'song') {
+      await del('presenter_bg_image_blob');
+    }
+    handleUpdateDisplaySettings(prevCat => ({
+      ...prevCat,
+      bgImageUrl: null,
+      bgType: prevCat.bgType === 'image' ? (category === 'countdown' ? 'none' : 'color') : prevCat.bgType
+    }), category);
+    notifyBgUpdate(category, 'image', null);
+  };
+
+  const handleSaveBackgroundVideo = async (file, category = 'song') => {
+    if (category === 'song') backgroundBlobsRef.current.songVidBlob = file;
+    if (category === 'bible') backgroundBlobsRef.current.bibleVidBlob = file;
+    if (category === 'liturgy') backgroundBlobsRef.current.liturgyVidBlob = file;
+    if (category === 'countdown') backgroundBlobsRef.current.countdownVidBlob = file;
+
+    const prevUrl = displaySettings.backgrounds?.[category]?.bgVideoUrl;
+    if (prevUrl && prevUrl.startsWith('blob:')) {
+      try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+    }
+    const url = URL.createObjectURL(file);
+    const { set } = await import('idb-keyval');
+    await set(`presenter_bg_video_blob_${category}`, file);
+    if (category === 'song') {
+      await set('presenter_bg_video_blob', file);
+    }
+    handleUpdateDisplaySettings(prevCat => ({
+      ...prevCat,
+      bgType: 'video',
+      bgVideoUrl: url
+    }), category);
+    notifyBgUpdate(category, 'video', file);
+  };
+
+  const handleClearBackgroundVideo = async (category = 'song') => {
+    if (category === 'song') backgroundBlobsRef.current.songVidBlob = null;
+    if (category === 'bible') backgroundBlobsRef.current.bibleVidBlob = null;
+    if (category === 'liturgy') backgroundBlobsRef.current.liturgyVidBlob = null;
+    if (category === 'countdown') backgroundBlobsRef.current.countdownVidBlob = null;
+
+    const prevUrl = displaySettings.backgrounds?.[category]?.bgVideoUrl;
+    if (prevUrl && prevUrl.startsWith('blob:')) {
+      try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+    }
+    const { del } = await import('idb-keyval');
+    await del(`presenter_bg_video_blob_${category}`);
+    if (category === 'song') {
+      await del('presenter_bg_video_blob');
+    }
+    handleUpdateDisplaySettings(prevCat => ({
+      ...prevCat,
+      bgVideoUrl: null,
+      bgType: prevCat.bgType === 'video' ? (category === 'countdown' ? 'none' : 'color') : prevCat.bgType
+    }), category);
+    notifyBgUpdate(category, 'video', null);
+  };
+
+  const handleApplyBackgroundToAll = async (sourceCategory) => {
+    const sourceBg = displaySettings.backgrounds?.[sourceCategory] || {
+      bgType: displaySettings.bgType || 'color',
+      bgColor: displaySettings.bgColor || '#000000',
+      bgImageUrl: displaySettings.bgImageUrl,
+      bgVideoUrl: displaySettings.bgVideoUrl,
+      bgDim: displaySettings.bgDim,
+      bgVideoLoop: displaySettings.bgVideoLoop
+    };
+
+    const { get, set } = await import('idb-keyval');
+    const sourceImgBlob = (await get(`presenter_bg_image_blob_${sourceCategory}`)) || (sourceCategory === 'song' ? await get('presenter_bg_image_blob') : null);
+    const sourceVidBlob = (await get(`presenter_bg_video_blob_${sourceCategory}`)) || (sourceCategory === 'song' ? await get('presenter_bg_video_blob') : null);
+
+    const categories = ['song', 'bible', 'liturgy'];
+    for (const cat of categories) {
+      if (sourceImgBlob) await set(`presenter_bg_image_blob_${cat}`, sourceImgBlob);
+      if (sourceVidBlob) await set(`presenter_bg_video_blob_${cat}`, sourceVidBlob);
+    }
+    if (sourceImgBlob) await set('presenter_bg_image_blob', sourceImgBlob);
+    if (sourceVidBlob) await set('presenter_bg_video_blob', sourceVidBlob);
+
+    backgroundBlobsRef.current = {
+      ...backgroundBlobsRef.current,
+      songVidBlob: sourceVidBlob,
+      bibleVidBlob: sourceVidBlob,
+      liturgyVidBlob: sourceVidBlob,
+      songImgBlob: sourceImgBlob,
+      bibleImgBlob: sourceImgBlob,
+      liturgyImgBlob: sourceImgBlob
+    };
+
+    handleUpdateDisplaySettings(prev => ({
+      ...prev,
+      backgrounds: {
+        ...(prev.backgrounds || {}),
+        song: { ...sourceBg },
+        bible: { ...sourceBg },
+        liturgy: { ...sourceBg }
+      },
+      bgType: sourceBg.bgType,
+      bgColor: sourceBg.bgColor,
+      bgImageUrl: sourceBg.bgImageUrl,
+      bgVideoUrl: sourceBg.bgVideoUrl,
+      bgDim: sourceBg.bgDim,
+      bgVideoLoop: sourceBg.bgVideoLoop
+    }));
+    notifyBgUpdate();
+  };
 
   // Self-Healing Protocol: Orphaned Blob Resolution
   // Shouts a signal heavily tying the lifecycle of popups to this exact dashboard instance. 
@@ -265,6 +774,20 @@ function App() {
     const connect = () => {
         let ws = new WebSocket(`ws://127.0.0.1:5179`);
         wsRef.current = ws;
+
+        ws.onopen = async () => {
+          if (isTauri()) {
+            try {
+              const { invoke } = await import('@tauri-apps/api/core');
+              const token = await invoke('get_master_token');
+              if (token && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'master_register', token }));
+              }
+            } catch (err) {
+              console.error("Failed to register master token:", err);
+            }
+          }
+        };
         
         ws.onmessage = async (event) => {
            if (event.data instanceof Blob) return; // Master doesn't need to process blobs sent by itself
@@ -309,8 +832,24 @@ function App() {
                    const clientId = data.clientId;
                    const submittedPin = (data.pin || '').trim();
 
+                   const clientLimit = clientId ? (pinRateLimitRef.current.get(clientId) || { attempts: 0, lockedUntil: 0 }) : null;
+                   if (clientLimit && clientLimit.lockedUntil > Date.now()) {
+                       const remainingMins = Math.ceil((clientLimit.lockedUntil - Date.now()) / 60000);
+                       ws.send(JSON.stringify({
+                           type: 'auth_status',
+                           targetClientId: clientId,
+                           pinRequired: true,
+                           authenticated: false,
+                           error: `Too many failed attempts. Try again in ${remainingMins} minute${remainingMins > 1 ? 's' : ''}.`
+                       }));
+                       return;
+                   }
+
                    if (!isPinSet || submittedPin === currentPin) {
-                       if (clientId) authenticatedClientsRef.current.add(clientId);
+                       if (clientId) {
+                           authenticatedClientsRef.current.add(clientId);
+                           pinRateLimitRef.current.delete(clientId);
+                       }
                        ws.send(JSON.stringify({
                            type: 'auth_status',
                            targetClientId: clientId,
@@ -327,12 +866,17 @@ function App() {
                            setTriggerMediaSync(prev => prev + 1);
                        }
                    } else {
+                       if (clientId) {
+                           const attempts = (clientLimit?.attempts || 0) + 1;
+                           const lockedUntil = attempts >= 5 ? Date.now() + 5 * 60 * 1000 : 0;
+                           pinRateLimitRef.current.set(clientId, { attempts, lockedUntil });
+                       }
                        ws.send(JSON.stringify({
                            type: 'auth_status',
                            targetClientId: clientId,
                            pinRequired: true,
                            authenticated: false,
-                           error: 'Incorrect PIN'
+                           error: clientLimit && clientLimit.attempts >= 4 ? 'Too many failed attempts. Locked out for 5 minutes.' : 'Incorrect PIN'
                        }));
                    }
                } else if (data.type === 'remote_command') {
@@ -357,7 +901,9 @@ function App() {
                    bc.postMessage({ type: 'remote_command', ...data });
                    bc.close();
                }
-           } catch (e) {}
+           } catch {
+               // ignore invalid message
+           }
         };
 
         ws.onclose = () => {
@@ -374,29 +920,44 @@ function App() {
     };
   }, [isProjectorView, isNetworkView]);
 
-    // Live Re-sharding: Automatically re-shard songs and bibles when the linesPerSlide setting changes
+    // Persist chosen line/verse counts across sessions
+    useEffect(() => {
+      if (!isLoaded) return;
+      import('idb-keyval').then(({ set }) => {
+        set('presenter_lines_settings', {
+          song: linesPerSlide,
+          liturgy: liturgyLinesPerSlide,
+          bible: bibleVersesPerSlide
+        }).catch(() => {});
+      }).catch(() => {});
+    }, [isLoaded, linesPerSlide, liturgyLinesPerSlide, bibleVersesPerSlide]);
+
+    // Live Re-sharding: Automatically re-shard songs, liturgy, and bibles when slide chunking settings change
     useEffect(() => {
       if (!isLoaded) return;
       
-      // Only re-shard if it's a song, liturgy, or bible and has rawText source
       const reShard = (item) => {
          if ((item?.type === 'song' || item?.type === 'liturgy' || item?.type === 'bible') && item.rawText) {
-            let parsedSlides;
             if (item.type === 'song') {
-                parsedSlides = parseSongMarkdown(item.rawText, linesPerSlide).slides;
+                const lps = item.linesPerSlide || linesPerSlide;
+                const parsedSlides = parseSongMarkdown(item.rawText, lps).slides;
+                return { ...item, linesPerSlide: lps, slides: parsedSlides };
             } else if (item.type === 'liturgy') {
-                parsedSlides = parseLiturgyMarkdown(item.rawText, linesPerSlide).slides;
+                const lps = item.linesPerSlide || liturgyLinesPerSlide;
+                const parsedSlides = parseLiturgyMarkdown(item.rawText, lps).slides;
+                return { ...item, linesPerSlide: lps, slides: parsedSlides };
             } else if (item.type === 'bible') {
-                parsedSlides = parseBibleText(item.rawText, item.reference || item.title, 1);
+                const vps = item.versesPerSlide || bibleVersesPerSlide || 1;
+                const parsedSlides = parseBibleText(item.rawText, item.reference || item.title, vps);
+                return { ...item, versesPerSlide: vps, slides: parsedSlides };
             }
-            return { ...item, slides: parsedSlides };
          }
          return item;
       };
 
-    if (selectedItem) setSelectedItem(prev => reShard(prev));
-    if (liveItem) setLiveItem(prev => reShard(prev));
-  }, [linesPerSlide]);
+      if (selectedItem) setSelectedItem(prev => reShard(prev));
+      if (liveItem) setLiveItem(prev => reShard(prev));
+    }, [linesPerSlide, liturgyLinesPerSlide, bibleVersesPerSlide]);
 
 
   const [remoteCommand, setRemoteCommand] = useState(null);
@@ -419,36 +980,55 @@ function App() {
   const [isSyncingMedia, setIsSyncingMedia] = useState(false);
   const [syncedMediaUrl, setSyncedMediaUrl] = useState(null);
   const [triggerMediaSync, setTriggerMediaSync] = useState(0);
-  const lastUploadedRef = useRef(null);
+  const uploadedUrlsRef = useRef(new Set());
+  const lastTriggerSyncRef = useRef(0);
   useEffect(() => {
+    let isCancelled = false;
     const syncMedia = async () => {
-      let targetUrl = null;
-      if (isShowLogo && logoUrl?.startsWith('blob:')) targetUrl = logoUrl;
-      else if (liveItem?.url?.startsWith('blob:')) {
-         if (liveItem.type !== 'audio') targetUrl = liveItem.url;
-      }
-      else if (liveItem?.type === 'image' || liveItem?.type === 'slide_deck') {
-         const img = liveItem.images?.[liveSlideIndex];
-         if (img?.url?.startsWith('blob:')) targetUrl = img.url;
+      if (triggerMediaSync !== lastTriggerSyncRef.current) {
+        lastTriggerSyncRef.current = triggerMediaSync;
+        uploadedUrlsRef.current.clear();
       }
 
-      if (targetUrl) {
-          if (triggerMediaSync > 0 && targetUrl === lastUploadedRef.current) {
-              lastUploadedRef.current = null;
-          }
+      const urlsToSync = [];
+      const enqueueBlob = (u) => {
+        if (typeof u === 'string' && u.startsWith('blob:') && !urlsToSync.includes(u)) {
+          urlsToSync.push(u);
         }
+      };
 
-        if (targetUrl && targetUrl !== lastUploadedRef.current) {
-        lastUploadedRef.current = targetUrl;
+      if (isShowLogo && logoUrl?.startsWith('blob:')) enqueueBlob(logoUrl);
+      if (liveItem?.url?.startsWith('blob:') && liveItem.type !== 'audio') {
+        enqueueBlob(liveItem.url);
+      } else if (liveItem?.type === 'image' || liveItem?.type === 'slide_deck') {
+        const img = liveItem.images?.[liveSlideIndex];
+        if (img?.url?.startsWith('blob:')) enqueueBlob(img.url);
+      }
+
+      // Sync active category background media (song / bible / liturgy) for Network Live Viewers
+      if (liveItem?.type === 'song' || liveItem?.type === 'bible' || liveItem?.type === 'liturgy') {
+        const catBg = displaySettings.backgrounds?.[liveItem.type];
+        if (catBg?.bgType === 'image' && catBg.bgImageUrl) enqueueBlob(catBg.bgImageUrl);
+        if (catBg?.bgType === 'video' && catBg.bgVideoUrl) enqueueBlob(catBg.bgVideoUrl);
+      }
+
+      // Sync active countdown background media when countdown is active
+      if (countdown?.active) {
+        const cdBg = displaySettings.backgrounds?.countdown;
+        if (cdBg?.bgType === 'image' && cdBg.bgImageUrl) enqueueBlob(cdBg.bgImageUrl);
+        if (cdBg?.bgType === 'video' && cdBg.bgVideoUrl) enqueueBlob(cdBg.bgVideoUrl);
+      }
+
+      const pendingUrls = urlsToSync.filter(u => !uploadedUrlsRef.current.has(u));
+      if (pendingUrls.length === 0) return;
+
+      for (const targetUrl of pendingUrls) {
+        if (isCancelled) break;
+        uploadedUrlsRef.current.add(targetUrl);
         setIsSyncingMedia(true);
         if (wsRef.current?.readyState === 1) wsRef.current.send(JSON.stringify({ type: 'sync-start', id: targetUrl }));
 
         try {
-          if (liveItem?.type === 'video' || liveItem?.type === 'audio') {
-             // Only block ultra-massive raw ultra-HD video buffering to prevent memory crash (e.g. over 200MB)
-             // Typical 13MB 1080p clips will process completely fine!
-          }
-
           const res = await fetch(targetUrl);
           const blob = await res.blob();
           const buffer = await blob.arrayBuffer();
@@ -457,29 +1037,62 @@ function App() {
           // can smoothly mount and start playing locally before we block the thread to send.
           await new Promise(r => setTimeout(r, 150));
 
-          if (wsRef.current?.readyState === 1) { wsRef.current.send(JSON.stringify({ type: 'media_header', id: targetUrl, mime: blob.type })); wsRef.current.send(buffer); }
-          
+          if (wsRef.current?.readyState === 1) {
+            wsRef.current.send(JSON.stringify({ type: 'media_header', id: targetUrl, mime: blob.type }));
+            wsRef.current.send(buffer);
+          }
           setSyncedMediaUrl(targetUrl);
         } catch (e) {
+          uploadedUrlsRef.current.delete(targetUrl);
           console.error("Sync Media Failed:", e);
         }
-        
+
         if (wsRef.current?.readyState === 1) wsRef.current.send(JSON.stringify({ type: 'sync-end', id: targetUrl }));
         setIsSyncingMedia(false);
       }
     };
     syncMedia();
-  }, [liveItem, liveSlideIndex, logoUrl, isShowLogo, triggerMediaSync]);
+    return () => { isCancelled = true; };
+  }, [liveItem, liveSlideIndex, logoUrl, isShowLogo, displaySettings, countdown?.active, triggerMediaSync]);
 
   // Projection Engine Compiler
   useEffect(() => {
     if (isProjectorView || isNetworkView || remoteControlRoom) return;
+
+    // Resolve active background based on live item type (song, bible, liturgy)
+    const activeItemType = liveItem?.type;
+    const isTextCategory = activeItemType === 'song' || activeItemType === 'bible' || activeItemType === 'liturgy';
+    const catBg = isTextCategory
+      ? (displaySettings.backgrounds?.[activeItemType] || {
+          bgType: displaySettings.bgType || 'color',
+          bgColor: displaySettings.bgColor || '#000000',
+          bgImageUrl: displaySettings.bgImageUrl,
+          bgVideoUrl: displaySettings.bgVideoUrl,
+          bgDim: displaySettings.bgDim,
+          bgVideoLoop: displaySettings.bgVideoLoop
+        })
+      : {
+          bgType: 'color',
+          bgColor: '#000000',
+          bgImageUrl: null,
+          bgVideoUrl: null,
+          bgDim: 0,
+          bgVideoLoop: true
+        };
+
+    const effectiveLiveLinesPerSlide =
+      liveItem?.type === 'liturgy'
+        ? (liveItem.linesPerSlide || liturgyLinesPerSlide)
+        : liveItem?.type === 'bible'
+        ? (liveItem.versesPerSlide || bibleVersesPerSlide)
+        : (liveItem?.linesPerSlide || linesPerSlide);
+
     const payload = {
        isLive,
        isBlackScreen,
        isShowLogo,
        logoUrl,
-       linesPerSlide,
+       linesPerSlide: effectiveLiveLinesPerSlide,
        mediaType: null,
        itemId: liveItem?.id,
        activeSlide: null,
@@ -492,6 +1105,21 @@ function App() {
        itemAutoPlay: liveItem?.autoPlay || false,
        churchName: churchName,
        displayFont: displayFont,
+       textScale: displaySettings.textScale ?? 1,
+       bgType: catBg.bgType || 'color',
+       bgColor: catBg.bgColor || '#000000',
+       bgImageUrl: catBg.bgImageUrl,
+       bgVideoUrl: catBg.bgVideoUrl,
+       bgDim: catBg.bgDim !== undefined ? catBg.bgDim : 0.3,
+       bgVideoLoop: catBg.bgVideoLoop ?? true,
+       backgrounds: displaySettings.backgrounds,
+       transitionEnabled: displaySettings.transitionEnabled ?? true,
+       transitionType: displaySettings.transitionType || 'crossfade',
+       transitionDuration: displaySettings.transitionDuration || 400,
+       ccliSettings: ccliSettings,
+       announcement: announcement,
+       countdown: countdown,
+       overlaySettings: overlaySettings,
        stickyAudioUrl: stickyAudioItem?.url || null,
        slideIndex: liveSlideIndex,
        itemSlides: liveItem?.slides || null,
@@ -509,6 +1137,15 @@ function App() {
              payload.activeSlide = slides[liveSlideIndex].content;
              if (liveItem.type === 'bible') {
                  payload.slideSubText = slides[liveSlideIndex].type; // This holds the passage reference
+             } else if (liveItem.type === 'song') {
+                 payload.songMetadata = {
+                   title: liveItem.title || '',
+                   artist: liveItem.artist || '',
+                   ccli: liveItem.ccli || '',
+                   copyright: liveItem.copyright || '',
+                   isFirstSlide: liveSlideIndex === 0,
+                   isLastSlide: liveSlideIndex === (slides.length - 1)
+                 };
              }
           }
         } else if (liveItem.type === 'liturgy') {
@@ -565,28 +1202,51 @@ function App() {
     };
 
     broadcast();
-  }, [isLive, isBlackScreen, isShowLogo, logoUrl, liveItem, liveSlideIndex, linesPerSlide, playbackStatus, slideshowInterval, syncedMediaUrl, churchName, displayFont, stickyAudioItem]);
+  }, [isLive, isBlackScreen, isShowLogo, logoUrl, liveItem, liveSlideIndex, linesPerSlide, liturgyLinesPerSlide, bibleVersesPerSlide, playbackStatus, slideshowInterval, syncedMediaUrl, churchName, displayFont, stickyAudioItem, displaySettings, ccliSettings, announcement, countdown, overlaySettings]);
+
+  const livePayloadStateRef = useRef(null);
+  useEffect(() => {
+    livePayloadStateRef.current = livePayload;
+  }, [livePayload]);
 
   useEffect(() => {
     const bc = new BroadcastChannel('presenter-projector-hub');
      bc.onmessage = (e) => {
         if (!e.data) return;
+        const currentPayload = livePayloadStateRef.current;
         
         if (e.data === 'ping') {
            setProjectorConnected(true);
            if (projectorTimeoutRef.current) clearTimeout(projectorTimeoutRef.current);
            projectorTimeoutRef.current = setTimeout(() => setProjectorConnected(false), 2500);
-           if (livePayload) bc.postMessage(livePayload);
+           if (currentPayload) {
+              bc.postMessage({
+                type: 'sync-projector',
+                payload: currentPayload,
+                blobs: backgroundBlobsRef.current
+              });
+           }
         }
 
-        if (e.data?.type === 'request-sync' && livePayload) {
-           bc.postMessage(livePayload);
+        if (e.data?.type === 'request-sync' && currentPayload) {
+           bc.postMessage({
+             type: 'sync-projector',
+             payload: currentPayload,
+             blobs: backgroundBlobsRef.current
+           });
         }
 
         if (e.data?.type === 'heartbeat') {
            setProjectorConnected(true);
            if (projectorTimeoutRef.current) clearTimeout(projectorTimeoutRef.current);
            projectorTimeoutRef.current = setTimeout(() => setProjectorConnected(false), 2500);
+           if (e.data?.needsSync && currentPayload) {
+              bc.postMessage({
+                type: 'sync-projector',
+                payload: currentPayload,
+                blobs: backgroundBlobsRef.current
+              });
+           }
         }
         
         if (e.data.type === 'playback') {
@@ -619,7 +1279,7 @@ function App() {
         }
      };
      return () => bc.close();
-   }, [livePayload]);
+   }, []);
 
   // Network Viewer WebSocket Initialization
   useEffect(() => {
@@ -714,6 +1374,7 @@ function App() {
      const interval = setInterval(() => {
         if (projectorWindowRef.current && projectorWindowRef.current.closed) {
            setIsLive(false);
+           setLiveItem(null);
            setPresentationPaused(true);
            const bc = new BroadcastChannel('presenter-projector-hub');
            bc.postMessage({ type: 'control', command: 'pause' });
@@ -796,7 +1457,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItem, activeSlideIndex]);
+  }, [selectedItem, liveItem, activeSlideIndex]);
 
   // Control Actions
     const handleSelectItem = async (item, forceLive = false) => {
@@ -817,11 +1478,28 @@ function App() {
 
        if ((item.type === 'song' || item.type === 'liturgy' || item.type === 'bible') && item.rawText) {
           let parsedSlides;
-          if (item.type === 'song') parsedSlides = parseSongMarkdown(item.rawText, linesPerSlide).slides;
-          else if (item.type === 'liturgy') parsedSlides = parseLiturgyMarkdown(item.rawText, linesPerSlide).slides;
-          else if (item.type === 'bible') parsedSlides = parseBibleText(item.rawText, item.reference || item.title, 1);
-          
-          itemToView = { ...item, slides: parsedSlides };
+          if (item.type === 'song') {
+            const lps = item.linesPerSlide || linesPerSlide;
+            const parsed = parseSongMarkdown(item.rawText, lps);
+            parsedSlides = parsed.slides;
+            itemToView = {
+              ...item,
+              title: item.title || parsed.metadata.title,
+              artist: item.artist || parsed.metadata.artist,
+              ccli: item.ccli || parsed.metadata.ccli,
+              copyright: item.copyright || parsed.metadata.copyright,
+              linesPerSlide: lps,
+              slides: parsedSlides
+            };
+          } else if (item.type === 'liturgy') {
+            const lps = item.linesPerSlide || liturgyLinesPerSlide;
+            parsedSlides = parseLiturgyMarkdown(item.rawText, lps).slides;
+            itemToView = { ...item, linesPerSlide: lps, slides: parsedSlides };
+          } else if (item.type === 'bible') {
+            const vps = item.versesPerSlide || bibleVersesPerSlide || 1;
+            parsedSlides = parseBibleText(item.rawText, item.reference || item.title, vps);
+            itemToView = { ...item, versesPerSlide: vps, slides: parsedSlides };
+          }
        }
       // Decoupled Seleciton: Only update Live Output if selecting from the Service tab
       if (activeTab === 'Service' || forceLive) {
@@ -884,21 +1562,36 @@ function App() {
       if (selectedItem.slides) {
           const selectedSlides = Array.from(selectedIndices).sort((a,b) => a-b).map(idx => selectedItem.slides[idx]);
       
+      let baseTitle = selectedItem.title || selectedItem.reference || 'Untitled';
       let selectionLabel = " (Selected)";
       if (selectedItem.type === 'bible') {
-        const verseNumbers = selectedSlides
-          .map(s => s.type.replace('Verse ', ''))
-          .filter(v => !isNaN(v) && v.trim() !== '')
-          .map(Number);
-        
+        const verseNumbers = [];
+        selectedSlides.forEach(s => {
+          const contentTokens = [...(s?.content || []).join(' ').matchAll(/\[(\d+)/g)].map(m => Number(m[1]));
+          if (contentTokens.length > 0) {
+            contentTokens.forEach(n => { if (!isNaN(n)) verseNumbers.push(n); });
+          } else {
+            const typeMatch = String(s?.type || '').match(/:(\d+)/);
+            if (typeMatch && !isNaN(Number(typeMatch[1]))) {
+              verseNumbers.push(Number(typeMatch[1]));
+            }
+          }
+        });
+
         if (verseNumbers.length > 0) {
+          baseTitle = baseTitle.replace(/:.*$/, '').trim();
           selectionLabel = ":" + formatVerseRanges(verseNumbers);
         }
       }
 
+        const subsetRawText = selectedItem.type === 'bible'
+          ? selectedSlides.flatMap(s => s?.content || []).join('\n')
+          : undefined;
+
         itemToAdd = {
           ...selectedItem,
-          title: (selectedItem.title || selectedItem.reference) + selectionLabel,
+          rawText: subsetRawText,
+          title: baseTitle + selectionLabel,
           slides: selectedSlides
         };
       } else if (selectedItem.images) {
@@ -988,6 +1681,177 @@ function App() {
     setServiceItems(next);
   };
 
+  const selectedMonitorRef = useRef(selectedMonitor);
+  useEffect(() => {
+    selectedMonitorRef.current = selectedMonitor;
+  }, [selectedMonitor]);
+
+  const closeProjectorWindow = useCallback(async () => {
+    if (isTauri()) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('close_projector_window');
+        projectorWindowRef.current = null;
+        return;
+      } catch {
+        // Fallback to JS WebviewWindow API if Rust binary hasn't been rebuilt yet
+      }
+      try {
+        const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+        const existing = (await WebviewWindow.getByLabel('projector')) || projectorWindowRef.current;
+        if (existing) {
+          try { await existing.setFullscreen(false); } catch {}
+          try { await existing.destroy(); } catch { await existing.close?.().catch(() => {}); }
+        }
+      } catch {
+        projectorWindowRef.current?.close?.();
+      }
+      projectorWindowRef.current = null;
+      return;
+    }
+
+    if (projectorWindowRef.current) {
+      try { projectorWindowRef.current.close(); } catch {}
+      projectorWindowRef.current = null;
+    }
+  }, []);
+
+  const openProjectorWindow = useCallback(async () => {
+    const savedMonitorChoice = selectedMonitorRef.current;
+
+    if (isTauri()) {
+      try {
+        const [
+          { invoke },
+          { WebviewWindow },
+          { availableMonitors, currentMonitor, getCurrentWindow },
+          { PhysicalPosition, PhysicalSize }
+        ] = await Promise.all([
+          import('@tauri-apps/api/core'),
+          import('@tauri-apps/api/webviewWindow'),
+          import('@tauri-apps/api/window'),
+          import('@tauri-apps/api/dpi')
+        ]);
+
+        const [liveMonitors, mainMon] = await Promise.all([
+          availableMonitors().catch(() => []),
+          currentMonitor().catch(() => null)
+        ]);
+
+        const { mode, monitor: targetMon, isSameAsMain } = resolveTargetMonitor(
+          savedMonitorChoice,
+          liveMonitors,
+          mainMon
+        );
+        const isWindowed = mode === 'windowed';
+
+        // 1. Prefer native Rust multi-monitor builder when available
+        try {
+          await invoke('open_projector_window', {
+            monitorName: targetMon?.name ?? null,
+            monitorX: targetMon?.position?.x ?? null,
+            monitorY: targetMon?.position?.y ?? null,
+            windowed: isWindowed
+          });
+          const handle = await WebviewWindow.getByLabel('projector');
+          if (handle) {
+            projectorWindowRef.current = handle;
+            if (!isWindowed) {
+              await handle.setDecorations(false).catch(() => {});
+              await handle.setFullscreen(true).catch(() => {});
+            }
+          }
+          return;
+        } catch {
+          // Seamless JS fallback when running against an earlier compiled Rust binary
+        }
+
+        // 2. Clean up any existing projector window
+        const existing = await WebviewWindow.getByLabel('projector');
+        if (existing) {
+          try { await existing.setFullscreen(false); } catch {}
+          try { await existing.destroy(); } catch { await existing.close().catch(() => {}); }
+          await new Promise((r) => setTimeout(r, 40));
+        }
+
+        const projWin = new WebviewWindow('projector', {
+          url: '/?projector=true',
+          title: 'Presenter - Projector',
+          width: targetMon?.size?.width || 1280,
+          height: targetMon?.size?.height || 720,
+          x: targetMon?.position?.x,
+          y: targetMon?.position?.y,
+          decorations: isWindowed,
+          fullscreen: !isWindowed,
+          alwaysOnTop: false,
+          resizable: true,
+          visible: isWindowed ? true : false
+        });
+
+        projectorWindowRef.current = projWin;
+
+        if (!isWindowed) {
+          try {
+            await projWin.setDecorations(false).catch(() => {});
+            if (targetMon?.position && targetMon?.size) {
+              await projWin
+                .setPosition(new PhysicalPosition(targetMon.position.x, targetMon.position.y))
+                .catch(() => {});
+              await projWin
+                .setSize(new PhysicalSize(targetMon.size.width, targetMon.size.height))
+                .catch(() => {});
+            }
+            await projWin.setDecorations(false).catch(() => {});
+            await projWin.setFullscreen(true).catch(() => {});
+            await projWin.show().catch(() => {});
+
+            if (!isSameAsMain) {
+              await getCurrentWindow().setFocus().catch(() => {});
+            } else {
+              await projWin.setFocus().catch(() => {});
+            }
+          } catch (err) {
+            console.warn('Projector direct placement error:', err);
+          }
+        } else {
+          await projWin.show().catch(() => {});
+          await projWin.setFocus().catch(() => {});
+        }
+      } catch (err) {
+        console.error('Failed to open projector window:', err);
+      }
+      return;
+    }
+
+    // Browser / PWA fallback
+    let parsedMon = null;
+    if (savedMonitorChoice && savedMonitorChoice !== 'windowed') {
+      try { parsedMon = JSON.parse(savedMonitorChoice); } catch { parsedMon = null; }
+    }
+    const scale = parsedMon?.scaleFactor || window.devicePixelRatio || 1;
+    const width = parsedMon?.size?.width ? Math.round(parsedMon.size.width / scale) : window.screen.availWidth || 1280;
+    const height = parsedMon?.size?.height ? Math.round(parsedMon.size.height / scale) : window.screen.availHeight || 720;
+    const left = parsedMon?.position?.x !== undefined ? Math.round(parsedMon.position.x / scale) : window.screen.availLeft || 0;
+    const top = parsedMon?.position?.y !== undefined ? Math.round(parsedMon.position.y / scale) : window.screen.availTop || 0;
+
+    const win = window.open(
+      '/?projector=true',
+      'presenter_projector',
+      `left=${left},top=${top},width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no`
+    );
+    projectorWindowRef.current = win;
+    if (win) {
+      try {
+        win.focus();
+        win.addEventListener('load', () => {
+          try {
+            win.document?.documentElement?.requestFullscreen?.().catch(() => {});
+          } catch {}
+        });
+      } catch {}
+    }
+  }, []);
+
   useEffect(() => {
      const bc = new BroadcastChannel('presenter-remote-commands');
      bc.onmessage = (e) => {
@@ -1032,44 +1896,14 @@ function App() {
              setIsBlackScreen(prev => !prev);
          } else if (data.command === 'show_logo') {
              setIsShowLogo(prev => !prev);
-         } else if (data.command === 'clear_text') {
-             
          } else if (data.command === 'toggle_live') {
              setIsLive(prev => {
                  if (!prev) {
-                     // Open projector as a native Tauri window
-                     let winOptions = {
-                       url: '/presenter/?projector=true',
-                       title: 'Presenter - Projector',
-                       width: 1280,
-                       height: 720,
-                       decorations: false,
-                       alwaysOnTop: false,
-                        fullscreen: false,
-                        maximized: true,
-                       resizable: true,
-                     };
-                     
-                     if (selectedMonitor) {
-                        try {
-                           const m = JSON.parse(selectedMonitor);
-                           if (m && m.position) {
-                               winOptions.x = m.position.x;
-                               winOptions.y = m.position.y;
-                               winOptions.fullscreen = true;
-                           }
-                        } catch(e) {}
-                     }
-                     
-                     const projWin = new WebviewWindow('projector', winOptions);
-                     projWin.once('tauri://created', () => {
-                         projWin.maximize();
-                         if (winOptions.fullscreen) projWin.setFullscreen(true);
-                     });
-                     projectorWindowRef.current = projWin;
+                     openProjectorWindow();
                      return true;
                  } else {
-                     if (projectorWindowRef.current) projectorWindowRef.current.close();
+                     closeProjectorWindow();
+                     setLiveItem(null);
                      return false;
                  }
              });
@@ -1081,39 +1915,18 @@ function App() {
              const hub = new BroadcastChannel('presenter-projector-hub');
              hub.postMessage({ type: 'playback', command: 'pause', source: 'remote', ts: Date.now() });
              hub.close();
+         } else if (data.command === 'dismiss_announcement') {
+             setAnnouncement(prev => ({ ...prev, active: false }));
+         } else if (data.command === 'stop_countdown') {
+             setCountdown(prev => ({ ...prev, active: false, running: false, remainingSeconds: 0 }));
          }
      };
      return () => bc.close();
-  }, [serviceItems]);
+  }, [serviceItems, openProjectorWindow, closeProjectorWindow]);
 
-  const toggleLive = () => {
+  const toggleLive = async () => {
      if (!isLive) {
-        // Break out projection window via standard OS popups
-        // Open projector as a native Tauri window
-                     let winOptions = {
-                       url: '/presenter/?projector=true',
-                       title: 'Presenter - Projector',
-                       width: 1280,
-                       height: 720,
-                       decorations: false,
-                       alwaysOnTop: false,
-                       fullscreen: false,
-                       maximized: true,
-                       resizable: true,
-                     };
-                     
-                     if (selectedMonitor) {
-                        try {
-                           const m = JSON.parse(selectedMonitor);
-                           if (m && m.position) {
-                               winOptions.x = m.position.x;
-                               winOptions.y = m.position.y;
-                           }
-                        } catch(e) {}
-                     }
-                     
-                     const projWin = new WebviewWindow('projector', winOptions);
-                     projectorWindowRef.current = projWin;
+        await openProjectorWindow();
         setIsLive(true);
         if (liveItem) {
            setPlayedItems(prev => new Set(prev).add(liveItem.id));
@@ -1124,8 +1937,9 @@ function App() {
   };
 
   const executeGoOffline = () => {
-     if (projectorWindowRef.current) projectorWindowRef.current.close();
+     closeProjectorWindow();
      setIsLive(false);
+     setLiveItem(null);
      setPresentationPaused(true);
      const bc = new BroadcastChannel('presenter-projector-hub');
      bc.postMessage({ type: 'control', command: 'pause' });
@@ -1136,7 +1950,7 @@ function App() {
   // ROUTING LAYER: PROJECTOR
   if (isProjectorView) {
     return (
-       <div className="w-screen h-screen bg-[#F7F7F7] overflow-hidden relative">
+       <div className="w-screen h-screen bg-black overflow-hidden relative">
           <OutputScreen payload={livePayload} isMaster={true} isProjector={true} remoteCommand={remoteCommand} />
        </div>
     );
@@ -1145,7 +1959,7 @@ function App() {
   // ROUTING LAYER: NETWORK
   if (isNetworkView) {
     return (
-       <div className="w-screen h-screen bg-[#F7F7F7] overflow-hidden relative">
+       <div className="w-screen h-screen bg-black overflow-hidden relative">
           <OutputScreen payload={networkPayload} isLiveBroadcast={true} />
        </div>
     );
@@ -1166,17 +1980,17 @@ function App() {
   }
 
   return (
-    <DragDropZone libraryHandle={libraryHandle} onFileAdded={() => setFileSystemTrigger(prev => prev + 1)}>
-      <div className="h-screen bg-[#F7F7F7] text-[#1C355E] flex flex-col overflow-hidden font-sans selection:bg-[#3D7B8C]/30">
+    <DragDropZone libraryHandle={libraryHandle} onFileAdded={refreshLibrary}>
+      <div className="h-screen bg-[#FAF6F0] text-[#1C355E] flex flex-col overflow-hidden font-sans selection:bg-[#3D7B8C]/20">
           
           {/* TOP NAVIGATION BAR */}
-          <header className="h-16 border-b border-[#3D7B8C]/10/80 flex flex-col justify-between px-6 bg-white/60 backdrop-blur-xl z-20 pt-2 shadow-sm">
-            <div className="flex justify-between items-end w-full h-full">
-              <div className="flex items-center gap-3 pb-3 w-[356px] shrink-0">
+          <header className="h-16 border-b border-[#E4E1DA] flex flex-col justify-between px-4 xl:px-6 bg-white z-20 pt-2">
+            <div className="flex justify-between items-end w-full h-full gap-2">
+              <div className="flex items-center gap-3 pb-2 h-full w-auto xl:w-[270px] 2xl:w-[340px] shrink-0">
                   <Logo showText={true} />
               </div>
               
-              <div className="flex gap-2 overflow-x-auto no-scrollbar flex-1 justify-center px-4">
+              <div className="flex gap-1 xl:gap-1.5 overflow-x-auto no-scrollbar flex-1 justify-center px-2">
                 {TABS.map(tab => (
                    <button 
                      key={tab}
@@ -1185,10 +1999,10 @@ function App() {
                        setSelectedItem(null);
                        setActiveSlideIndex(0);
                      }}
-                     className={`px-5 py-3 text-xs font-bold uppercase tracking-wider rounded-t-xl transition-all duration-200 border-b-2 flex items-center h-full ${
+                     className={`px-3.5 xl:px-5 py-3 text-xs font-bold uppercase tracking-wider rounded-t-xl transition-colors duration-150 border-b-2 flex items-center h-full cursor-pointer whitespace-nowrap ${
                        activeTab === tab 
-                          ? 'text-[#1C355E] border-[#3D7B8C] bg-white/80 shadow-[inset_0_2px_10px_rgba(255,255,255,0.02)]' 
-                          : 'text-neutral-400 border-transparent hover:text-neutral-700 hover:bg-white/40'
+                          ? 'text-[#1C355E] border-[#7A502A] bg-[#FAF6F0]' 
+                          : 'text-[#526075] border-transparent hover:text-[#1C355E] hover:bg-[#FAF6F0]/60'
                      }`}
                    >
                      {tab}
@@ -1196,11 +2010,11 @@ function App() {
                 ))}
               </div>
               
-              <div className="flex items-center justify-end gap-4 pb-3 w-[336px] shrink-0">
+              <div className="flex items-center justify-end gap-4 pb-3 w-auto xl:w-[270px] 2xl:w-[330px] shrink-0">
 
                 <button 
                   onClick={() => setIsSettingsOpen(true)}
-                  className="p-1.5 text-neutral-400 hover:text-[#1C355E] hover:bg-[#F7F7F7] rounded-lg transition-colors"
+                  className="p-2 text-[#526075] hover:text-[#1C355E] hover:bg-[#FAF6F0] rounded-lg transition-colors cursor-pointer"
                   title="System Settings"
                 >
                   <Settings size={18} />
@@ -1211,7 +2025,7 @@ function App() {
 
           <main className="flex-1 flex overflow-hidden relative">
             
-            <div className="w-[380px] border-r border-[#3D7B8C]/10/50 p-5 bg-white/30 flex flex-col gap-6 flex-shrink-0 z-10 shadow-lg relative">
+            <div className="w-[310px] xl:w-[340px] 2xl:w-[380px] border-r border-[#E4E1DA] p-4 2xl:p-5 bg-[#FAF6F0] flex flex-col gap-6 flex-shrink-0 z-10 relative">
               <Sidebar 
                  activeTab={activeTab} setActiveTab={setActiveTab}
                  libraryHandle={libraryHandle}
@@ -1222,6 +2036,7 @@ function App() {
                  searchState={searchState}
                  folderFiles={folderFiles}
                  linesPerSlide={linesPerSlide}
+                 liturgyLinesPerSlide={liturgyLinesPerSlide}
                  serviceItems={serviceItems}
                  systemTrigger={systemTrigger}
                  onRefresh={refreshLibrary}
@@ -1253,10 +2068,19 @@ function App() {
               />
             </div>
             
-            <div className="flex-1 p-8 bg-white/95 overflow-y-auto relative custom-scrollbar flex flex-col z-0">
+            <div className="flex-1 p-5 xl:p-6 2xl:p-8 bg-white overflow-y-auto relative custom-scrollbar flex flex-col z-0">
               {(activeTab === 'new_liturgy' || activeTab === 'edit_liturgy') ? (
                  <LiturgyEditor
                    libraryHandle={libraryHandle}
+                   displaySettings={displaySettings}
+                   displayFont={displayFont}
+                   linesPerSlide={selectedItem?.type === 'liturgy' ? (selectedItem.linesPerSlide || liturgyLinesPerSlide) : liturgyLinesPerSlide}
+                   onChangeLinesPerSlide={(n) => {
+                     setLiturgyLinesPerSlide(n);
+                     if (selectedItem?.type === 'liturgy') {
+                       setSelectedItem(prev => prev ? { ...prev, linesPerSlide: n } : prev);
+                     }
+                   }}
                    initialFile={selectedItem?.type === 'liturgy' && selectedItem?.fileHandle
                      ? { name: selectedItem.filename, handle: selectedItem.fileHandle }
                      : null
@@ -1266,12 +2090,14 @@ function App() {
                      const load = async () => {
                        const f = await saved.handle.getFile();
                        const text = await f.text();
-                       const parsed = parseLiturgyMarkdown(text);
+                       const lps = selectedItem?.type === 'liturgy' ? (selectedItem.linesPerSlide || liturgyLinesPerSlide) : liturgyLinesPerSlide;
+                       const parsed = parseLiturgyMarkdown(text, lps);
                        const updated = {
                          type: 'liturgy',
                          id: saved.name,
                          filename: saved.name,
                          title: parsed.metadata.title || saved.name.replace('.md', ''),
+                         linesPerSlide: lps,
                          slides: parsed.slides,
                          rawText: text,
                          fileHandle: saved.handle,
@@ -1317,14 +2143,14 @@ function App() {
                     }}
                   />
                ) : selectedItem?.type === 'video' ? (
-                  <div className="w-full h-full flex flex-col bg-[#F7F7F7] rounded-2xl border border-[#3D7B8C]/10 p-8 shadow-inner overflow-hidden relative">
+                  <div className="w-full h-full flex flex-col bg-[#FAF6F0] rounded-2xl border border-[#E4E1DA] p-8 overflow-hidden relative">
                      {/* Header matches PreviewEditor */}
-                     <div className="flex flex-col mb-6 border-b border-[#3D7B8C]/10/50 pb-4 gap-4">
+                     <div className="flex flex-col mb-6 border-b border-[#E4E1DA] pb-4 gap-4">
                         <div className="flex items-center gap-3">
                            {activeTab !== 'Service' && (
                               <button 
                                  onClick={handleAddToService}
-                                 className={`flex items-center justify-center h-10 gap-2 px-6 py-2 ${showAddedFeedback ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20' : 'bg-[#3D7B8C] hover:bg-[#3D7B8C] shadow-blue-900/20'} text-white rounded-xl transition-all font-black text-xs uppercase tracking-widest shadow-lg active:scale-95`}
+                                 className={`flex items-center justify-center h-10 gap-2 px-6 py-2 ${showAddedFeedback ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-[#7A502A] hover:bg-[#654121]'} text-white rounded-xl transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer`}
                               >
                                  {showAddedFeedback ? <Check size={16} strokeWidth={3} /> : <Plus size={16} strokeWidth={3} />}
                                  {showAddedFeedback ? 'ADDED!' : 'Add to Service'}
@@ -1335,7 +2161,7 @@ function App() {
                                href={selectedItem.url} 
                                target="_blank" 
                                rel="noopener noreferrer" 
-                               className="flex items-center gap-1.5 h-10 px-4 py-2 bg-[#F7F7F7] hover:bg-neutral-200 text-neutral-700 hover:white rounded-xl border border-[#3D7B8C]/20/50 transition-all font-bold text-xs uppercase tracking-widest shadow-lg transform hover:-translate-y-0.5 active:translate-y-0"
+                               className="flex items-center gap-1.5 h-10 px-4 py-2 bg-white hover:bg-[#F0EBE1] text-[#1C355E] rounded-xl border border-[#E4E1DA] transition-colors font-bold text-xs uppercase tracking-widest shadow-sm"
                              >
                                <ExternalLink size={14} className="text-[#3D7B8C]" /> Open Source
                              </a>
@@ -1361,14 +2187,14 @@ function App() {
                      </div>
                   </div>
                ) : selectedItem?.type === 'audio' ? (
-                   <div className="w-full h-full flex flex-col bg-[#F7F7F7] rounded-2xl border border-[#3D7B8C]/10 p-8 shadow-inner overflow-hidden relative">
+                   <div className="w-full h-full flex flex-col bg-[#FAF6F0] rounded-2xl border border-[#E4E1DA] p-8 overflow-hidden relative">
                        {/* Header matches PreviewEditor */}
-                       <div className="flex flex-col mb-6 border-b border-[#3D7B8C]/10/50 pb-4 gap-4">
+                       <div className="flex flex-col mb-6 border-b border-[#E4E1DA] pb-4 gap-4">
                           <div className="flex items-center gap-3">
                              {activeTab !== 'Service' && (
                                 <button 
                                    onClick={handleAddToService}
-                                   className={`flex items-center justify-center h-10 gap-2 px-6 py-2 ${showAddedFeedback ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20' : 'bg-[#3D7B8C] hover:bg-[#3D7B8C] shadow-blue-900/20'} text-white rounded-xl transition-all font-black text-xs uppercase tracking-widest shadow-lg active:scale-95`}
+                                   className={`flex items-center justify-center h-10 gap-2 px-6 py-2 ${showAddedFeedback ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-[#7A502A] hover:bg-[#654121]'} text-white rounded-xl transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer`}
                                 >
                                    {showAddedFeedback ? <Check size={16} strokeWidth={3} /> : <Plus size={16} strokeWidth={3} />}
                                    {showAddedFeedback ? 'ADDED TO SERVICE' : 'Add Audio to Service'}
@@ -1382,8 +2208,8 @@ function App() {
                        
                        <div className="flex-1 w-full h-full min-h-0 flex items-center justify-center">
                            <div className="flex flex-col items-center gap-8 max-w-2xl w-full">
-                               <div className="w-24 h-24 bg-purple-600/20 rounded-full flex items-center justify-center border border-purple-500/30">
-                                   <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                               <div className="w-24 h-24 bg-[#EDF4F6] rounded-full flex items-center justify-center border border-[#3D7B8C]/30">
+                                   <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#3D7B8C]"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
                                </div>
                                
                                <CentralAudioPlayer 
@@ -1409,18 +2235,27 @@ function App() {
                        }}
                    />
                ) : selectedItem?.isPpt || selectedItem?.isDocument ? (
-                 <div className="w-full h-full flex flex-col items-center justify-center text-center p-8 bg-[#F7F7F7] rounded-2xl border-2 border-[#3D7B8C]/10 shadow-inner">
-                    <h3 className="text-3xl font-extrabold mb-4 text-[#1C355E] tracking-widest">{selectedItem.title}</h3>
-                    <p className="text-neutral-400 text-sm max-w-md font-medium leading-relaxed">Presentations and Document files cannot be natively controlled or paginated inside a web browser frame.<br/><br/>Please export your slides or pages as images (.jpg or .png) and drop them into the Images folder for native viewing, or use an external application alongside Presenter.</p>
+                 <div className="w-full h-full flex flex-col items-center justify-center text-center p-8 bg-[#FAF6F0] rounded-2xl border border-[#E4E1DA]">
+                    <h3 className="text-3xl font-extrabold mb-4 text-[#1C355E] tracking-tight">{selectedItem.title}</h3>
+                    <p className="text-[#526075] text-sm max-w-md font-medium leading-relaxed">Presentations and Document files cannot be natively controlled or paginated inside a web browser frame.<br/><br/>Please export your slides or pages as images (.jpg or .png) and drop them into the Images folder for native viewing, or use an external application alongside Presenter.</p>
                  </div>
               ) : (selectedItem?.slides || selectedItem?.isBibleBook) ? (
                   <PreviewEditor 
                     item={selectedItem} 
                     onUpdateItem={(newItem) => setSelectedItem(newItem)}
                     activeIndex={activeSlideIndex} 
-                    linesPerSlide={selectedItem.type === 'bible' ? 1 : linesPerSlide}
+                    linesPerSlide={
+                      selectedItem.type === 'bible'
+                        ? (selectedItem.versesPerSlide || bibleVersesPerSlide)
+                        : selectedItem.type === 'liturgy'
+                        ? (selectedItem.linesPerSlide || liturgyLinesPerSlide)
+                        : (selectedItem.linesPerSlide || linesPerSlide)
+                    }
                     selectedIndices={selectedIndices}
                     isServiceItem={serviceItems.some(si => si.id === selectedItem?.id)}
+                    displaySettings={displaySettings}
+                    displayFont={displayFont}
+                    ccliSettings={ccliSettings}
                     onToggleSelection={(idx) => {
                        const next = new Set(selectedIndices);
                        if (next.has(idx)) next.delete(idx);
@@ -1444,49 +2279,68 @@ function App() {
                       if (remainingSlides.length === 0) {
                         handleDeleteItem(selectedItem.id);
                       } else {
-                        const updatedItem = { ...selectedItem, slides: remainingSlides };
+                        const restItem = { ...selectedItem };
+                        delete restItem.rawText;
+                        const updatedItem = { ...restItem, slides: remainingSlides };
                         setServiceItems(serviceItems.map(si => si.id === selectedItem.id ? updatedItem : si));
                         setSelectedItem(updatedItem);
+                        if (liveItem?.id === selectedItem.id) {
+                          setLiveItem(updatedItem);
+                        }
                       }
                       setSelectedIndices(new Set());
                     }}
                     onChangeLinesPerSlide={(n) => {
-                      setLinesPerSlide(n);
-                        if (selectedItem?.rawText) {
-                          let parsedSlides;
-                          if (selectedItem.type === 'song') parsedSlides = parseSongMarkdown(selectedItem.rawText, n).slides;
-                          else if (selectedItem.type === 'liturgy') parsedSlides = parseLiturgyMarkdown(selectedItem.rawText, n).slides;
-                          else if (selectedItem.type === 'bible') parsedSlides = parseBibleText(selectedItem.rawText, selectedItem.reference || selectedItem.title, n);
-                          
-                          if (parsedSlides) {
-                            setSelectedItem(prev => ({ ...prev, slides: parsedSlides }));
-                            setActiveSlideIndex(0);
-                            
-                            // Update it in service list too if it's there
-                            setServiceItems(prev => prev.map(si => 
-                              si.id === selectedItem.id 
-                                ? { ...si, slides: parsedSlides }
-                                : si
-                            ));
+                      if (selectedItem?.type === 'bible') {
+                        setBibleVersesPerSlide(n);
+                      } else if (selectedItem?.type === 'liturgy') {
+                        setLiturgyLinesPerSlide(n);
+                      } else {
+                        setLinesPerSlide(n);
+                      }
+                      if (selectedItem?.rawText) {
+                        let parsedSlides;
+                        if (selectedItem.type === 'song') parsedSlides = parseSongMarkdown(selectedItem.rawText, n).slides;
+                        else if (selectedItem.type === 'liturgy') parsedSlides = parseLiturgyMarkdown(selectedItem.rawText, n).slides;
+                        else if (selectedItem.type === 'bible') parsedSlides = parseBibleText(selectedItem.rawText, selectedItem.reference || selectedItem.title, n);
+                        
+                        if (parsedSlides) {
+                          const extraProps = selectedItem.type === 'bible' ? { versesPerSlide: n } : { linesPerSlide: n };
+                          setSelectedItem(prev => ({ ...prev, ...extraProps, slides: parsedSlides }));
+                          setActiveSlideIndex(0);
+                          if (liveItem?.id === selectedItem.id) {
+                            setLiveItem(prev => ({ ...prev, ...extraProps, slides: parsedSlides }));
+                            setLiveSlideIndex(0);
                           }
+                          
+                          // Update it in service list too if it's there
+                          setServiceItems(prev => prev.map(si => 
+                            si.id === selectedItem.id 
+                              ? { ...si, ...extraProps, slides: parsedSlides }
+                              : si
+                          ));
                         }
+                      }
                     }}
                  />
               ) : (
-                 <div className="w-full h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto opacity-30 pointer-events-none">
-                    <h3 className="text-2xl font-black mb-3 tracking-widest text-neutral-400">NO MEDIA SELECTED</h3>
-                    <p className="text-neutral-400 font-bold text-sm leading-loose">Use the tabs above to select content folders.<br/>Select an item to preview it, then click "Add to Service".</p>
+                 <div className="w-full h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto pointer-events-none">
+                    <h3 className="text-xl font-extrabold mb-3 tracking-widest text-[#1C355E]/60">NO MEDIA SELECTED</h3>
+                    <p className="text-[#526075] font-medium text-sm leading-relaxed">Use the tabs above to select content folders.<br/>Select an item to preview it, then click "Add to Service".</p>
                  </div>
               )}
             </div>
             
-            <div className="w-[360px] border-l border-[#3D7B8C]/10/50 p-6 bg-white/50 shadow-2xl z-20 flex-shrink-0 overflow-y-auto custom-scrollbar">
+            <div className="w-[310px] xl:w-[330px] 2xl:w-[360px] border-l border-[#E4E1DA] p-4 xl:p-5 2xl:p-6 bg-[#FAF6F0] z-20 flex-shrink-0 overflow-y-auto custom-scrollbar">
                <LiveControl 
                  isLive={isLive} toggleLive={toggleLive}
                  isBlackScreen={isBlackScreen} setIsBlackScreen={setIsBlackScreen}
-                 isShowLogo={isShowLogo} setIsShowLogo={setIsShowLogo}
-                 
-                 onPickLogo={setLogoUrl}
+                 announcement={announcement}
+                 setAnnouncement={setAnnouncement}
+                 countdown={countdown}
+                 setCountdown={setCountdown}
+                 overlaySettings={overlaySettings}
+                 onUpdateOverlaySettings={handleUpdateOverlaySettings}
                  livePayload={livePayload}
                  remoteCommand={remoteCommand}
                  playbackStatus={playbackStatus}
@@ -1503,13 +2357,31 @@ function App() {
           {isSettingsOpen && (
             <SettingsView
              selectedMonitor={selectedMonitor}
-             setSelectedMonitor={setSelectedMonitor}
+             setSelectedMonitor={(val) => {
+               selectedMonitorRef.current = val;
+               setSelectedMonitor(val);
+               if (isLive) {
+                 openProjectorWindow();
+               }
+             }}
               roomId={roomId}
               churchName={churchName}
               setChurchName={setChurchName}
               displayFont={displayFont}
               setDisplayFont={setDisplayFont}
               remotePassword={remotePassword}
+              ccliSettings={ccliSettings}
+              onUpdateCcliSettings={handleUpdateCcliSettings}
+              overlaySettings={overlaySettings}
+              onUpdateOverlaySettings={handleUpdateOverlaySettings}
+              displaySettings={displaySettings}
+              onUpdateDisplaySettings={handleUpdateDisplaySettings}
+              onSaveBackgroundImage={handleSaveBackgroundImage}
+              onClearBackgroundImage={handleClearBackgroundImage}
+              onSaveBackgroundVideo={handleSaveBackgroundVideo}
+              onClearBackgroundVideo={handleClearBackgroundVideo}
+              onApplyBackgroundToAll={handleApplyBackgroundToAll}
+              libraryHandle={libraryHandle}
               onSavePassword={async (val) => {
                   setRemotePassword(val);
                   remotePasswordRef.current = val;
@@ -1517,7 +2389,9 @@ function App() {
                   try {
                       const { set } = await import('idb-keyval');
                       await set('presenter_remote_password', val);
-                  } catch (e) {}
+                  } catch {
+                      // ignore
+                  }
                   if (wsRef.current?.readyState === 1) {
                       const hasPin = !!(val && val.trim().length > 0);
                       wsRef.current.send(JSON.stringify({

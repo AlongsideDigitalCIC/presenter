@@ -17,7 +17,7 @@ export function useFileSystemWatcher(libraryHandle) {
     const setupObserver = async () => {
       try {
         if ('FileSystemObserver' in window) {
-          observer = new window.FileSystemObserver((records) => {
+          observer = new window.FileSystemObserver(() => {
             // Something changed (file added, modified, deleted)
             setTrigger(t => t + 1);
           });

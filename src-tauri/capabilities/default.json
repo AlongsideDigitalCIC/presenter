@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "projector"
   ],
   "permissions": [
     "core:default",
@@ -13,25 +14,19 @@
       "identifier": "fs:allow-read",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
@@ -39,25 +34,19 @@
       "identifier": "fs:allow-write",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
@@ -65,25 +54,19 @@
       "identifier": "fs:allow-mkdir",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
@@ -91,25 +74,19 @@
       "identifier": "fs:allow-remove",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
@@ -117,61 +94,60 @@
       "identifier": "fs:allow-exists",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
     "core:window:allow-create",
     "core:window:allow-close",
+    "core:window:allow-destroy",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
     "core:window:allow-set-focus",
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-size",
     "core:window:allow-set-position",
     "core:window:allow-set-always-on-top",
     "core:window:allow-set-decorations",
+    "core:window:allow-set-cursor-visible",
+    "core:window:allow-available-monitors",
+    "core:window:allow-current-monitor",
+    "core:window:allow-primary-monitor",
     "core:webview:allow-create-webview",
     "core:webview:allow-create-webview-window",
     {
       "identifier": "fs:allow-read-dir",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
@@ -180,25 +156,19 @@
       "identifier": "fs:allow-read-file",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
@@ -206,25 +176,19 @@
       "identifier": "fs:allow-read-text-file",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
@@ -232,25 +196,19 @@
       "identifier": "fs:allow-write-file",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },
@@ -258,25 +216,19 @@
       "identifier": "fs:allow-write-text-file",
       "allow": [
         {
-          "path": "C:/Users/jonat/OneDrive/Documents/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/Documents/Presenter/**"
-        },
-        {
-          "path": "C:/Users/jonat/OneDrive/**"
-        },
-        {
-          "path": "**"
-        },
-        {
-          "path": "**/*"
-        },
-        {
           "path": "$DOCUMENT/**"
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "$APPCACHE/**"
+        },
+        {
+          "path": "$RESOURCE/**"
         }
       ]
     },

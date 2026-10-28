@@ -1,8 +1,19 @@
 import { isTauri } from './env.js';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { convertPdfToImages } from './pdfConverter';
+import { convertPptxToImages } from './pptxConverter';
 
-export async function verifyPermission(fileHandle, readWrite = true) {
+function safeConvertFileSrc(filePath, fallbackFile) {
+  if (isTauri() && filePath && typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.convertFileSrc === 'function') {
+    try {
+      return window.__TAURI_INTERNALS__.convertFileSrc(filePath);
+    } catch {
+      // fallback
+    }
+  }
+  return fallbackFile ? URL.createObjectURL(fallbackFile) : '';
+}
+
+export async function verifyPermission() {
   return true; // Always return true for Tauri!
 }
 
@@ -41,7 +52,10 @@ export async function reResolveMedia(items, library) {
     
     try {
       if (item.type === 'slide_deck') {
-         if (item.filename?.toLowerCase().endsWith('.pdf') || item.extension === 'pdf') {
+         if (
+             item.filename?.toLowerCase().endsWith('.pdf') || item.extension === 'pdf' ||
+             item.filename?.toLowerCase().endsWith('.pptx') || item.extension === 'pptx'
+         ) {
              let fileHandle = item.fileHandle || item.handle;
              if (!fileHandle || typeof fileHandle.getFile !== 'function') {
                  if (item.relativePath) {
@@ -56,11 +70,18 @@ export async function reResolveMedia(items, library) {
                  }
              }
              const file = await fileHandle.getFile();
-             const images = await convertPdfToImages(file, item.selectedIndices);
+             const isPptx = item.filename?.toLowerCase().endsWith('.pptx') || item.extension === 'pptx';
+             let images = [];
+             if (isPptx) {
+                 const result = await convertPptxToImages(file, item.selectedIndices);
+                 images = result.images;
+             } else {
+                 images = await convertPdfToImages(file, item.selectedIndices);
+             }
              for (let img of images) {
                  img.thumbnail = await generateThumbnail(img.url);
              }
-             const url = (isTauri() && fileHandle.path) ? convertFileSrc(fileHandle.path) : URL.createObjectURL(file);
+             const url = safeConvertFileSrc(fileHandle.path, file);
              newItems[i] = { ...item, fileHandle, images, url };
          } else {
              let subDir = item.handle || item.fileHandle;
@@ -93,7 +114,7 @@ export async function reResolveMedia(items, library) {
                    const tempUrl = URL.createObjectURL(file);
                    const thumbnail = await generateThumbnail(tempUrl);
                    if (isTauri() && fileH.path) URL.revokeObjectURL(tempUrl);
-                   const url = (isTauri() && fileH.path) ? convertFileSrc(fileH.path) : tempUrl;
+                   const url = safeConvertFileSrc(fileH.path, file);
                    resolvedImages.push({ url, thumbnail });
                 }
              }
@@ -122,7 +143,7 @@ export async function reResolveMedia(items, library) {
             URL.revokeObjectURL(tempUrl);
          }
          
-         const url = (isTauri() && fileHandle.path && !isVideoOrAudio) ? convertFileSrc(fileHandle.path) : tempUrl;
+         const url = (!isVideoOrAudio) ? safeConvertFileSrc(fileHandle.path, file) : tempUrl;
          newItems[i] = { ...item, url, fileHandle, images: item.type === 'image' ? [{ url, thumbnail }] : undefined, thumbnail };
       }
     } catch (err) {

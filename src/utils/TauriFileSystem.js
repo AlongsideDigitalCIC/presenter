@@ -1,22 +1,37 @@
-import { readDir, readFile, writeFile, mkdir, remove, exists, writeTextFile } from '@tauri-apps/plugin-fs';
+import { readDir, readFile, writeFile, mkdir, remove, exists } from '@tauri-apps/plugin-fs';
+import { isTauri } from './env';
 
-import { join as tauriJoin } from '@tauri-apps/api/path';
-async function join(...args) {
-    const p = await tauriJoin(...args);
-    return p.replace(/\\/g, '/');
+function sanitizeChildName(name) {
+  if (typeof name !== 'string' || !name.trim()) throw new Error('Invalid entry name');
+  const cleaned = name.replace(/\\/g, '/').replace(/^\/+/, '');
+  const segments = cleaned.split('/').filter(Boolean);
+  if (segments.some(s => s === '..' || s === '.')) {
+    throw new Error(`Path traversal attempt blocked: ${name}`);
+  }
+  return segments.join('/');
 }
 
+function joinPath(...parts) {
+  return parts
+    .filter(Boolean)
+    .map(p => String(p).replace(/\\/g, '/'))
+    .map((p, i) => (i === 0 ? p.replace(/\/+$/, '') : p.replace(/^\/+|\/+$/g, '')))
+    .filter(Boolean)
+    .join('/');
+}
 
 export class TauriFileHandle {
   constructor(path, name) {
-    this.path = path;
+    this.path = path.replace(/\\/g, '/');
     this.name = name;
     this.kind = 'file';
   }
 
   async getFile() {
+    if (!isTauri()) {
+      throw new Error('Tauri file access is only available in the desktop application.');
+    }
     const bytes = await readFile(this.path);
-    // Simple mime type fallback based on extension if needed, but octet-stream is fine for blobs
     let type = 'application/octet-stream';
     if (this.name.toLowerCase().endsWith('.pdf')) type = 'application/pdf';
     else if (this.name.match(/\.(jpg|jpeg)$/i)) type = 'image/jpeg';
@@ -28,6 +43,9 @@ export class TauriFileHandle {
   }
 
   async createWritable() {
+    if (!isTauri()) {
+      throw new Error('Tauri file access is only available in the desktop application.');
+    }
     const targetPath = this.path;
     return {
       content: null,
@@ -43,7 +61,6 @@ export class TauriFileHandle {
         } else if (this.content instanceof Uint8Array) {
           uint8 = this.content;
         } else {
-          // Fallback
           uint8 = new Uint8Array(await new Response(this.content).arrayBuffer());
         }
         await writeFile(targetPath, uint8);
@@ -54,75 +71,83 @@ export class TauriFileHandle {
 
 export class TauriDirectoryHandle {
   constructor(path, name) {
-    this.path = path;
+    this.path = path.replace(/\\/g, '/');
     this.name = name;
     this.kind = 'directory';
   }
 
   async getDirectoryHandle(name, options = { create: false }) {
-    const nextPath = await join(this.path, name);
+    if (!isTauri()) {
+      throw new Error('Tauri directory access is only available in the desktop application.');
+    }
+    const safeName = sanitizeChildName(name);
+    const nextPath = joinPath(this.path, safeName);
     if (options.create) {
       const dirExists = await exists(nextPath);
       if (!dirExists) {
-         await mkdir(nextPath, { recursive: true });
+        await mkdir(nextPath, { recursive: true });
       }
     }
-    return new TauriDirectoryHandle(nextPath, name);
+    return new TauriDirectoryHandle(nextPath, safeName);
   }
 
   async getFileHandle(name, options = { create: false }) {
-    const nextPath = await join(this.path, name);
+    if (!isTauri()) {
+      throw new Error('Tauri directory access is only available in the desktop application.');
+    }
+    const safeName = sanitizeChildName(name);
+    const nextPath = joinPath(this.path, safeName);
     if (options.create) {
       const fileExists = await exists(nextPath);
       if (!fileExists) {
-         await writeFile(nextPath, new Uint8Array([]));
+        await writeFile(nextPath, new Uint8Array([]));
       }
     }
-    return new TauriFileHandle(nextPath, name);
+    return new TauriFileHandle(nextPath, safeName);
   }
 
   async removeEntry(name) {
-    const targetPath = await join(this.path, name);
+    if (!isTauri()) return;
+    const safeName = sanitizeChildName(name);
+    const targetPath = joinPath(this.path, safeName);
     try {
-        await remove(targetPath, { recursive: true });
+      await remove(targetPath, { recursive: true });
     } catch(err) {
-        console.warn('Failed to remove entry', err);
+      console.warn('Failed to remove entry', err);
     }
   }
 
   async *values() {
+    if (!isTauri()) return;
     try {
-        const entries = await readDir(this.path);
-        try {
-            await writeTextFile('C:\\Users\\jonat\\OneDrive\\Documents\\debug_taurifs.txt', 'Reading dir: ' + this.path + '\n' + JSON.stringify(entries, null, 2), { append: true });
-        } catch(e) {}
-
-        for (const entry of entries) {
-        const entryPath = await join(this.path, entry.name);
+      const entries = await readDir(this.path);
+      for (const entry of entries) {
+        const entryPath = joinPath(this.path, entry.name);
         if (entry.isDirectory) {
-            yield new TauriDirectoryHandle(entryPath, entry.name);
+          yield new TauriDirectoryHandle(entryPath, entry.name);
         } else {
-            yield new TauriFileHandle(entryPath, entry.name);
+          yield new TauriFileHandle(entryPath, entry.name);
         }
-        }
+      }
     } catch(err) {
-        console.warn('Failed to read dir', this.path, err); alert("readDir fail: " + this.path + " - " + String(err));
+      console.warn('Failed to read dir', this.path, err);
     }
   }
   
   async *entries() {
+    if (!isTauri()) return;
     try {
-        const entries = await readDir(this.path);
-        for (const entry of entries) {
-        const entryPath = await join(this.path, entry.name);
+      const entries = await readDir(this.path);
+      for (const entry of entries) {
+        const entryPath = joinPath(this.path, entry.name);
         if (entry.isDirectory) {
-            yield [entry.name, new TauriDirectoryHandle(entryPath, entry.name)];
+          yield [entry.name, new TauriDirectoryHandle(entryPath, entry.name)];
         } else {
-            yield [entry.name, new TauriFileHandle(entryPath, entry.name)];
+          yield [entry.name, new TauriFileHandle(entryPath, entry.name)];
         }
-        }
+      }
     } catch(err) {
-        console.warn('Failed to read dir entries', this.path, err);
+      console.warn('Failed to read dir entries', this.path, err);
     }
   }
 }

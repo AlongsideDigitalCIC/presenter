@@ -39,11 +39,9 @@ const App = lazy(() => import('./App.jsx'));
 const ProjectorWindow = lazy(() => import('./components/ProjectorWindow.jsx'));
 const LiveViewer = lazy(() => import('./components/LiveViewer.jsx'));
 
-// Hard Route Controller
-const path = window.location.pathname;
-const base = import.meta.env.BASE_URL;
-const normalizedPath = path.startsWith(base) ? '/' + path.slice(base.length).replace(/^\//, '') : path;
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
+// Hard Route Controller
 const isProjector = window.location.search.includes('projector=true');
 const isLiveView = window.location.search.includes('view=live') || window.location.search.includes('network=true');
 
@@ -55,11 +53,10 @@ const renderApp = () => {
 
 // Global loading spinner for suspense fallback
 const LoadingFallback = () => (
-  <div className="h-screen w-screen flex items-center justify-center bg-[#F7F7F7]">
-    <div className="w-8 h-8 border-4 border-[#3D7B8C]/30 border-t-blue-500 rounded-full animate-spin"></div>
+  <div className={`h-screen w-screen flex items-center justify-center ${isProjector || isLiveView ? 'bg-black' : 'bg-[#FAF6F0]'}`}>
+    <div className="w-8 h-8 border-4 border-[#3D7B8C]/25 border-t-[#3D7B8C] rounded-full animate-spin"></div>
   </div>
 );
-
 
 // Force unregister service workers in Tauri to prevent stale assets
 if (isTauri() && 'serviceWorker' in navigator) {
@@ -72,9 +69,11 @@ if (isTauri() && 'serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <Suspense fallback={<LoadingFallback />}>
-      {renderApp()}
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingFallback />}>
+        {renderApp()}
+      </Suspense>
+    </ErrorBoundary>
   </StrictMode>,
 )
 

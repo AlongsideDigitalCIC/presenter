@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "presenter",
-  "version": "0.1.22",
+  "version": "1.0.0",
   "identifier": "com.alongsidedigital.presenter",
   "build": {
     "frontendDist": "../dist",
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: https: http: data: blob:; media-src 'self' asset: https: http: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ipc: http://ipc.localhost ws: wss: http: https:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
     }
   },
   "bundle": {

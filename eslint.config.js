@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'src-tauri/**', 'tmp/**', 'test_*.js']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -23,7 +23,27 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['error', {
+        varsIgnorePattern: '^[A-Z_]',
+        argsIgnorePattern: '^[A-Z_]',
+        caughtErrorsIgnorePattern: '^[A-Z_]',
+      }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+    },
+  },
+  {
+    files: ['src/main.jsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    files: ['vite.config.js', 'netlify/**'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'no-unused-vars': 'off',
     },
   },
 ])

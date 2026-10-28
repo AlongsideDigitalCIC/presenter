@@ -1,18 +1,86 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import OutputScreen from './OutputScreen';
+
+const resolvePayloadMediaUrls = (rawPayload, cache) => {
+  if (!rawPayload || typeof rawPayload !== 'object') return rawPayload;
+  const payload = { ...rawPayload };
+
+  const isLocalHost =
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  const mapUrl = (u) => {
+    if (typeof u !== 'string' || !u.startsWith('blob:')) return u;
+    if (cache[u]) return cache[u];
+    return isLocalHost ? u : null;
+  };
+
+  if (payload.logoUrl) payload.logoUrl = mapUrl(payload.logoUrl);
+  if (payload.activeMediaUrl) payload.activeMediaUrl = mapUrl(payload.activeMediaUrl);
+  if (payload.bgImageUrl) payload.bgImageUrl = mapUrl(payload.bgImageUrl);
+  if (payload.bgVideoUrl) payload.bgVideoUrl = mapUrl(payload.bgVideoUrl);
+
+  if (payload.backgrounds && typeof payload.backgrounds === 'object') {
+    const nextBgs = { ...payload.backgrounds };
+    ['song', 'bible', 'liturgy', 'countdown'].forEach((cat) => {
+      if (nextBgs[cat]) {
+        nextBgs[cat] = {
+          ...nextBgs[cat],
+          bgImageUrl: mapUrl(nextBgs[cat].bgImageUrl),
+          bgVideoUrl: mapUrl(nextBgs[cat].bgVideoUrl)
+        };
+      }
+    });
+    payload.backgrounds = nextBgs;
+  }
+
+  if ((payload.mediaType === 'image' || payload.mediaType === 'slide_deck') && Array.isArray(payload.activeSlide)) {
+    payload.activeSlide = payload.activeSlide.map((item) => {
+      if (item?.url?.startsWith('blob:')) {
+        const mapped = mapUrl(item.url);
+        return mapped ? { ...item, url: mapped } : item;
+      }
+      return item;
+    });
+  }
+
+  return payload;
+};
 
 const LiveViewer = () => {
   const [networkPayload, setNetworkPayload] = useState(null);
   const [remoteCommand, setRemoteCommand] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [scale, setScale] = useState(1);
-  const containerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(() => Boolean(document.fullscreenElement));
+  const [showHud, setShowHud] = useState(true);
+  const hudTimerRef = useRef(null);
   const mediaMapCache = useRef({});
   const pendingMediaRef = useRef(null);
-  const [webrtcStream, setWebrtcStream] = useState(null);
-  const viewerIdRef = useRef(Math.random().toString(36).substr(2, 9));
-  const pcRef = useRef(null);
   const wsRef = useRef(null);
+
+  const revealHud = useCallback(() => {
+    setShowHud(true);
+    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+    hudTimerRef.current = setTimeout(() => setShowHud(false), 2800);
+  }, []);
+
+  useEffect(() => {
+    hudTimerRef.current = setTimeout(() => setShowHud(false), 2800);
+    const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     let reconnectTimeout;
@@ -22,7 +90,6 @@ const LiveViewer = () => {
         wsRef.current = ws;
         
         ws.onopen = () => {
-           console.log("Connected to local WebSocket server");
            ws.send(JSON.stringify({ type: 'request_state', role: 'live_viewer' }));
         };
         
@@ -37,11 +104,7 @@ const LiveViewer = () => {
                    
                    setNetworkPayload(prev => {
                       if (!prev) return prev;
-                      const copy = { ...prev };
-                      let changed = false;
-                      if (copy.logoUrl === id) { copy.logoUrl = localUrl; changed = true; }
-                      if (copy.activeMediaUrl === id) { copy.activeMediaUrl = localUrl; changed = true; }
-                      return changed ? copy : prev;
+                      return resolvePayloadMediaUrls(prev, mediaMapCache.current);
                    });
                    pendingMediaRef.current = null;
                }
@@ -51,25 +114,8 @@ const LiveViewer = () => {
            try {
                const data = JSON.parse(event.data);
                if (data?.type === 'state') {
-                 const payload = data.payload;
-                 if (payload.logoUrl?.startsWith('blob:') && mediaMapCache.current[payload.logoUrl]) {
-                    payload.logoUrl = mediaMapCache.current[payload.logoUrl];
-                 }
-                 if (payload.activeMediaUrl?.startsWith('blob:') && mediaMapCache.current[payload.activeMediaUrl]) {
-                    payload.activeMediaUrl = mediaMapCache.current[payload.activeMediaUrl];
-                 }
-                 if (payload.mediaType === 'image' || payload.mediaType === 'slide_deck') {
-                    if (payload.activeSlide && Array.isArray(payload.activeSlide)) {
-                       payload.activeSlide = payload.activeSlide.map(item => {
-                          if (item.url?.startsWith('blob:') && mediaMapCache.current[item.url]) {
-                             return { ...item, url: mediaMapCache.current[item.url] };
-                          }
-                          return item;
-                       });
-                    }
-                 }
-                 
-                 setNetworkPayload(payload);
+                 const resolved = resolvePayloadMediaUrls(data.payload, mediaMapCache.current);
+                 setNetworkPayload(resolved);
               } else if (data?.type === 'playback') {
                  setRemoteCommand({ ...data, ts: Date.now() });
               } else if (data?.type === 'sync-start') {
@@ -83,7 +129,6 @@ const LiveViewer = () => {
         };
         
         ws.onclose = () => {
-           console.log("WebSocket connection closed");
            clearTimeout(reconnectTimeout);
            reconnectTimeout = setTimeout(connect, 1000);
         };
@@ -100,45 +145,54 @@ const LiveViewer = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (!containerRef.current) return;
-      
-      const { clientWidth, clientHeight } = containerRef.current;
-      const targetW = 1600;
-      const targetH = 900;
-      
-      const scaleX = clientWidth / targetW;
-      const scaleY = clientHeight / targetH;
-      const s = Math.max(scaleX, scaleY);
-      setScale(s);
-    };
-
-    const ro = new ResizeObserver(handleResize);
-    if (containerRef.current) ro.observe(containerRef.current);
-    handleResize();
-    return () => ro.disconnect();
-  }, []);
-
   return (
-    <div ref={containerRef} className="w-[100dvw] h-[100dvh] bg-black overflow-hidden flex items-center justify-center relative font-sans select-none">
-       <div className="relative w-full aspect-video max-h-full max-w-full bg-black flex-shrink-0">
-         <OutputScreen 
-            payload={networkPayload || { isLive: false }} 
-            isLiveBroadcast={true} 
-            remoteCommand={remoteCommand}
-         />
-       </div>
-       
-       <div className="fixed bottom-4 right-6 text-[10px] font-black text-white/50 uppercase tracking-widest pointer-events-none z-50 flex items-center gap-4">
-          {isSyncing && (
-             <div className="flex items-center gap-2 text-blue-400 bg-blue-900/20 px-3 py-1.5 rounded-full border border-blue-500/20 backdrop-blur-md">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                Receiving Media...
-             </div>
-          )}
-          Presenter Live View
-       </div>
+    <div
+      onMouseMove={revealHud}
+      onTouchStart={revealHud}
+      onDoubleClick={toggleFullscreen}
+      className={`w-[100dvw] h-[100dvh] bg-black overflow-hidden flex items-center justify-center relative font-sans select-none ${
+        !showHud && isFullscreen ? 'cursor-none' : 'cursor-default'
+      }`}
+    >
+      {/* True 16:9 broadcast stage: fills 100% on 1920x1080 (including Windows 125% / 150% DPI scaling) without aspect distortion */}
+      <div
+        className="relative bg-black flex-shrink-0 overflow-hidden"
+        style={{
+          width: 'min(100dvw, calc(100dvh * 16 / 9))',
+          height: 'min(100dvh, calc(100dvw * 9 / 16))'
+        }}
+      >
+        <OutputScreen
+          payload={networkPayload || { isLive: false }}
+          isLiveBroadcast={true}
+          remoteCommand={remoteCommand}
+        />
+      </div>
+
+      <div
+        className={`fixed bottom-4 right-5 z-50 flex items-center gap-3 transition-opacity duration-300 ${
+          showHud || isSyncing ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        {isSyncing && (
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-sky-300 bg-sky-950/60 px-3 py-1.5 rounded-full border border-sky-400/25 backdrop-blur-md pointer-events-none">
+            <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+            Receiving Media...
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleFullscreen();
+          }}
+          title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Enter Fullscreen'}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white/80 hover:text-white text-[10px] font-bold uppercase tracking-widest backdrop-blur-md transition cursor-pointer"
+        >
+          {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+          <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+        </button>
+      </div>
     </div>
   );
 };

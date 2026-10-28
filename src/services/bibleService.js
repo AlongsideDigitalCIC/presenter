@@ -76,10 +76,9 @@ export function processYouVersionPassage(passageData, bibleId) {
     throw new Error("YouVersion API returned an empty or invalid passage response.");
   }
 
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = passageData.content || "";
+  const doc = new DOMParser().parseFromString(passageData.content || "", 'text/html');
   
-  const labels = tempDiv.querySelectorAll('.label, .yv-vlbl');
+  const labels = doc.querySelectorAll('.label, .yv-vlbl');
   labels.forEach(lbl => {
       const vNum = lbl.textContent.trim();
       if (vNum) {
@@ -87,7 +86,7 @@ export function processYouVersionPassage(passageData, bibleId) {
       }
   });
   
-  const verses = tempDiv.querySelectorAll('.v, .verse, [data-usfm]');
+  const verses = doc.querySelectorAll('.v, .verse, [data-usfm]');
   let extractedText = "";
 
   if (verses.length > 0) {
@@ -105,12 +104,12 @@ export function processYouVersionPassage(passageData, bibleId) {
        return v.textContent.trim();
      }).join(' ');
   } else {
-     extractedText = tempDiv.textContent || tempDiv.innerText || "";
+     extractedText = doc.body.textContent || "";
   }
   
   extractedText = extractedText.replace(/\s+/g, ' ').trim();
 
-  const slides = parseBibleText(extractedText, passageData.reference, 4);
+  const slides = parseBibleText(extractedText, passageData.reference, 1);
 
   return {
     reference: passageData.reference,
@@ -120,7 +119,7 @@ export function processYouVersionPassage(passageData, bibleId) {
   };
 }
 
-export function parseBibleText(rawText, reference, linesPerSlide = 4) {
+export function parseBibleText(rawText, reference, linesPerSlide = 1) {
   const slides = [];
   let slideIndex = 1;
 
@@ -135,12 +134,16 @@ export function parseBibleText(rawText, reference, linesPerSlide = 4) {
         .filter(l => l !== '');
   } else {
       rawLines = rawText
-        .replace(/([.?!;"'])\s+(?=[A-Z0-9\[])/g, "$1\n")
+        .replace(/([.?!;"'])\s+(?=[A-Z0-9[])/g, "$1\n")
         .split('\n')
         .map(l => l.trim())
         .filter(l => l !== '');
   }
   let currentVerseMatch = "";
+
+  // Extract base "Book Chapter" when reference is single-chapter (e.g. "John 3" or "John 3:16-20")
+  const singleChapterMatch = String(reference || '').trim().match(/^(.+?\s+\d+)(?::\d+[a-z]?(?:\s*[-–]\s*\d+[a-z]?)?)?$/i);
+  const baseChapterRef = singleChapterMatch ? singleChapterMatch[1].trim() : null;
 
   const chunks = balanceLines(rawLines, linesPerSlide);
   chunks.forEach(chunk => {
@@ -154,8 +157,20 @@ export function parseBibleText(rawText, reference, linesPerSlide = 4) {
        chunk[0] = `${currentVerseMatch} ${firstLine}`;
     }
 
+    let slideReference = reference;
+    if (baseChapterRef) {
+      const verseTokens = [...chunk.join(' ').matchAll(/\[(\d+[a-z]?(?:-\d+[a-z]?)?)\]/gi)].map(m => m[1]);
+      if (verseTokens.length > 0) {
+        const firstV = verseTokens[0];
+        const lastV = verseTokens[verseTokens.length - 1];
+        slideReference = firstV === lastV
+          ? `${baseChapterRef}:${firstV}`
+          : `${baseChapterRef}:${firstV}-${lastV}`;
+      }
+    }
+
     slides.push({
-      type: reference,
+      type: slideReference,
       content: chunk,
       index: slideIndex++
     });
@@ -169,16 +184,20 @@ export function processBibleJson(rawData) {
     return {
         book: rawData.book,
         translation: rawData.translation || 'Local',
-        chapters: rawData.chapters
+        chapters: rawData.chapters,
+        isBibleBook: true,
+        bookData: rawData
     };
 }
 
 export function generateSlidesForChapter(bookData, chapterNum, linesPerSlide = 1) {
-    const chapter = bookData.chapters.find(c => c.num === parseInt(chapterNum));
-    if (!chapter) return [];
-    const rawText = chapter.verses.map(v => `[${v.num}] ${v.text}`).join(' ');
+    const targetChap = parseInt(chapterNum);
+    const chapter = bookData.chapters.find(c => parseInt(c.chapter ?? c.num) === targetChap);
+    if (!chapter) return { slides: [], rawText: '', reference: `${bookData.book} ${chapterNum}` };
+    const rawText = (chapter.verses || []).map(v => `[${v.verse ?? v.num}] ${v.text}`).join(' ');
     const reference = `${bookData.book} ${chapterNum}`;
-    return parseBibleText(rawText, reference, linesPerSlide);
+    const slides = parseBibleText(rawText, reference, linesPerSlide);
+    return { slides, rawText, reference };
 }
 
 export async function fetchLocalBiblePassage(libraryHandle, folderName, reference) {
@@ -219,20 +238,22 @@ export async function fetchLocalBiblePassage(libraryHandle, folderName, referenc
       let startV = parsed.startVerse;
       let endV = parsed.endVerse || startV;
       
-      const chapterData = bookData.chapters.find(c => c.num === currentChap);
+      const chapterData = bookData.chapters.find(c => parseInt(c.num ?? c.chapter) === currentChap);
       if (!chapterData) throw new Error(`Chapter ${currentChap} not found`);
       
       chapterData.verses.forEach(v => {
-          if (v.num >= startV && v.num <= endV) {
-              combinedRawText += `[${v.num}] ${v.text} `;
+          const vNum = parseInt(v.num ?? v.verse);
+          if (vNum >= startV && vNum <= endV) {
+              combinedRawText += `[${vNum}] ${v.text} `;
           }
       });
   } else {
-      const chapterData = bookData.chapters.find(c => c.num === parsed.chapterNum);
+      const chapterData = bookData.chapters.find(c => parseInt(c.num ?? c.chapter) === parsed.chapterNum);
       if (!chapterData) throw new Error(`Chapter ${parsed.chapterNum} not found`);
       
       chapterData.verses.forEach(v => {
-          combinedRawText += `[${v.num}] ${v.text} `;
+          const vNum = v.num ?? v.verse;
+          combinedRawText += `[${vNum}] ${v.text} `;
       });
   }
   
@@ -240,7 +261,7 @@ export async function fetchLocalBiblePassage(libraryHandle, folderName, referenc
   
   if (!combinedRawText) throw new Error("No verses found for the specified reference");
 
-  const slides = parseBibleText(combinedRawText, reference, 4);
+  const slides = parseBibleText(combinedRawText, reference, 1);
 
   return {
     reference: reference,

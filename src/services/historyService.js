@@ -40,6 +40,7 @@ export async function addSongPlay(songData) {
             title: songData.title,
             artist: songData.artist || '',
             ccli: songData.ccli || '',
+            copyright: songData.copyright || '',
             date: new Date().toISOString()
         });
         
@@ -76,6 +77,15 @@ export async function getSongHistory(fromDate, toDate) {
     }
 }
 
+function sanitizeCsvCell(val) {
+    let str = String(val || '');
+    // Neutralize spreadsheet formula triggers (=, +, -, @, tab, carriage return)
+    if (/^[=+\-@\t\r]/.test(str)) {
+        str = "'" + str;
+    }
+    return `"${str.replace(/"/g, '""')}"`;
+}
+
 /**
  * Generates and downloads a CSV of the song history.
  * @param {SongPlayRecord[]} records 
@@ -84,16 +94,16 @@ export function exportHistoryCSV(records) {
     if (!records || records.length === 0) return;
     
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Date Played,Artist,Song Title,CCLI Number\n";
+    csvContent += "Date Played,Artist,Song Title,CCLI Number,Copyright\n";
     
     records.forEach(record => {
-        const dateStr = new Date(record.date).toLocaleDateString();
-        // Escape quotes and commas
-        const artist = `"${record.artist.replace(/"/g, '""')}"`;
-        const title = `"${record.title.replace(/"/g, '""')}"`;
-        const ccli = `"${record.ccli.replace(/"/g, '""')}"`;
+        const dateStr = sanitizeCsvCell(new Date(record.date).toLocaleDateString());
+        const artist = sanitizeCsvCell(record.artist);
+        const title = sanitizeCsvCell(record.title);
+        const ccli = sanitizeCsvCell(record.ccli);
+        const copyright = sanitizeCsvCell(record.copyright);
         
-        csvContent += `${dateStr},${artist},${title},${ccli}\n`;
+        csvContent += `${dateStr},${artist},${title},${ccli},${copyright}\n`;
     });
     
     const encodedUri = encodeURI(csvContent);

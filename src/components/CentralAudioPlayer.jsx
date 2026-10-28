@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Play, Pause, Volume2, VolumeX, Repeat } from 'lucide-react';
 
 export default function CentralAudioPlayer({ 
@@ -15,16 +15,14 @@ export default function CentralAudioPlayer({
     const isDraggingVol = useRef(false);
     const preMuteVolumeRef = useRef(1);
 
-    // Reset when item changes
-    useEffect(() => {
+    const prevUrlRef = useRef(item?.url);
+    if (prevUrlRef.current !== item?.url) {
+        prevUrlRef.current = item?.url;
         setLocalTime(0);
         setLocalDuration(0);
         setLocalPaused(true);
         setLocalVolume(1);
-        if (audioRef.current) {
-            audioRef.current.volume = 1;
-        }
-    }, [item?.url]);
+    }
 
     const formatTime = (sec) => {
         if (!sec || isNaN(sec) || sec <= 0) return "0:00";
@@ -72,7 +70,7 @@ export default function CentralAudioPlayer({
     };
 
     return (
-        <div className="w-full bg-white/80 border border-[#3D7B8C]/10 rounded-2xl p-6 shadow-2xl flex flex-col gap-4 max-w-2xl mx-auto mt-4 relative overflow-hidden">
+        <div className="w-full bg-white border border-[#E4E1DA] rounded-2xl p-6 shadow-sm flex flex-col gap-4 max-w-2xl mx-auto mt-4 relative overflow-hidden">
             <audio 
                 ref={audioRef} 
                 src={item.url} 
@@ -84,9 +82,7 @@ export default function CentralAudioPlayer({
                 className="hidden" 
             />
             
-            <div className="absolute top-0 left-0 w-full h-1 bg-[#F7F7F7]" />
-
-            <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest text-center mb-1">
+            <div className="text-[10px] text-[#526075] font-bold uppercase tracking-widest text-center mb-1">
                 Local Preview Mode
             </div>
 
@@ -94,13 +90,13 @@ export default function CentralAudioPlayer({
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={handlePlayPause}
-                        className="w-12 h-12 bg-[#3D7B8C] hover:bg-[#3D7B8C] text-white rounded-full flex items-center justify-center transition active:scale-95 shadow-lg flex-shrink-0"
+                        className="w-12 h-12 bg-[#3D7B8C] hover:bg-[#2F6473] text-white rounded-full flex items-center justify-center transition-colors shadow-sm flex-shrink-0 cursor-pointer"
                     >
                         {localPaused ? <Play size={20} fill="currentColor" className="ml-1" /> : <Pause size={20} fill="currentColor" />}
                     </button>
                     <button 
                         onClick={toggleLoop}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition active:scale-95 flex-shrink-0 ${isLooping ? 'bg-[#3D7B8C] text-white shadow-md' : 'bg-[#F7F7F7] text-neutral-400 hover:bg-neutral-200'}`}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer ${isLooping ? 'bg-[#3D7B8C] text-white' : 'bg-[#FAF6F0] text-[#526075] hover:bg-[#F0EBE1] hover:text-[#1C355E] border border-[#E4E1DA]'}`}
                         title={isLooping ? "Repeat On" : "Repeat Off"}
                     >
                         <Repeat size={16} />
@@ -119,17 +115,17 @@ export default function CentralAudioPlayer({
                         onChange={(e) => {
                             setLocalTime(parseFloat(e.target.value));
                         }}
-                        className="w-full h-2 bg-[#F7F7F7] rounded-lg appearance-none cursor-pointer accent-[#3D7B8C]"
+                        className="w-full h-2 bg-[#F0EBE1] rounded-lg appearance-none cursor-pointer accent-[#3D7B8C]"
                     />
-                    <div className="flex justify-between text-xs font-black font-mono tracking-tighter">
-                        <span className={localTime > 0 ? "text-[#3D7B8C]" : "text-neutral-400"}>{formatTime(localTime)}</span>
-                        <span className={localDuration > 0 ? "text-neutral-400" : "text-neutral-600"}>-{formatTime(Math.max(0, localDuration - localTime))}</span>
+                    <div className="flex justify-between text-xs font-bold font-mono tracking-tighter">
+                        <span className={localTime > 0 ? "text-[#3D7B8C]" : "text-[#526075]"}>{formatTime(localTime)}</span>
+                        <span className="text-[#526075]">-{formatTime(Math.max(0, localDuration - localTime))}</span>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 min-w-[140px] w-1/4 border-l border-[#3D7B8C]/10 pl-5 flex-shrink-0">
-                    <button onClick={toggleMute} className="text-neutral-400 hover:text-[#1C355E] transition flex-shrink-0">
-                        {localVolume > 0.5 ? <Volume2 size={18} /> : localVolume > 0 ? <Volume2 size={18} className="opacity-60" /> : <VolumeX size={18} className="text-[#C4956A]" />}
+                <div className="flex items-center gap-3 min-w-[140px] w-1/4 border-l border-[#E4E1DA] pl-5 flex-shrink-0">
+                    <button onClick={toggleMute} className="text-[#526075] hover:text-[#1C355E] transition-colors flex-shrink-0 cursor-pointer">
+                        {localVolume > 0.5 ? <Volume2 size={18} /> : localVolume > 0 ? <Volume2 size={18} className="opacity-70" /> : <VolumeX size={18} className="text-[#B91C1C]" />}
                     </button>
                     <input 
                         type="range" min="0" max="1" step="0.05"
@@ -137,7 +133,7 @@ export default function CentralAudioPlayer({
                         onMouseDown={() => isDraggingVol.current = true}
                         onMouseUp={() => isDraggingVol.current = false}
                         onChange={(e) => handleVolume(parseFloat(e.target.value))}
-                        className="w-full h-1.5 bg-[#F7F7F7] rounded-lg appearance-none cursor-pointer accent-[#3D7B8C]"
+                        className="w-full h-1.5 bg-[#F0EBE1] rounded-lg appearance-none cursor-pointer accent-[#3D7B8C]"
                     />
                 </div>
             </div>
