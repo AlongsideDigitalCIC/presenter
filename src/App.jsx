@@ -940,7 +940,7 @@ function App() {
          if ((item?.type === 'song' || item?.type === 'liturgy' || item?.type === 'bible') && item.rawText) {
             if (item.type === 'song') {
                 const lps = item.linesPerSlide || linesPerSlide;
-                const parsedSlides = parseSongMarkdown(item.rawText, lps).slides;
+                const parsedSlides = parseSongMarkdown(item.rawText, lps, item.arrangement).slides;
                 return { ...item, linesPerSlide: lps, slides: parsedSlides };
             } else if (item.type === 'liturgy') {
                 const lps = item.linesPerSlide || liturgyLinesPerSlide;
@@ -1480,16 +1480,18 @@ function App() {
           let parsedSlides;
           if (item.type === 'song') {
             const lps = item.linesPerSlide || linesPerSlide;
-            const parsed = parseSongMarkdown(item.rawText, lps);
+            const parsed = parseSongMarkdown(item.rawText, lps, item.arrangement);
             parsedSlides = parsed.slides;
             itemToView = {
               ...item,
+              ...parsed,
               title: item.title || parsed.metadata.title,
               artist: item.artist || parsed.metadata.artist,
               ccli: item.ccli || parsed.metadata.ccli,
               copyright: item.copyright || parsed.metadata.copyright,
               linesPerSlide: lps,
-              slides: parsedSlides
+              slides: parsedSlides,
+              arrangement: item.arrangement || parsed.arrangement
             };
           } else if (item.type === 'liturgy') {
             const lps = item.linesPerSlide || liturgyLinesPerSlide;
@@ -1544,6 +1546,31 @@ function App() {
     } else {
        setStickyAudioItem(item);
        setPresentationPaused(false);
+    }
+  };
+
+  const handleUpdateItem = (newItem) => {
+    if (!newItem) return;
+    setSelectedItem(newItem);
+    setServiceItems(prev => prev.map(si => si.id === newItem.id ? { ...si, ...newItem } : si));
+    if (liveItemRef.current?.id === newItem.id || liveItem?.id === newItem.id) {
+      setLiveItem(prev => ({ ...prev, ...newItem }));
+    }
+  };
+
+  const handleSaveMasterSongText = async (filename, newRawText) => {
+    if (!libraryHandle || !filename) return false;
+    try {
+      const songsFolder = await libraryHandle.getDirectoryHandle('Songs', { create: true });
+      const fileHandle = await songsFolder.getFileHandle(filename, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(newRawText);
+      await writable.close();
+      if (typeof refreshLibrary === 'function') refreshLibrary();
+      return true;
+    } catch (err) {
+      console.error('Failed to update master song file on disk:', err);
+      return false;
     }
   };
 
@@ -2139,7 +2166,26 @@ function App() {
                     isServiceItem={serviceItems.some(si => si.id === selectedItem?.id)}
                     onAddSelectedToService={handleAddToService}
                     onRemoveSelectedFromService={() => {
+                      if (selectedIndices.size === 0) return;
+                      const currentImages = selectedItem.images || [];
+                      const remainingImages = currentImages.filter((_, idx) => !selectedIndices.has(idx));
+
+                      if (remainingImages.length === 0) {
                         handleDeleteItem(selectedItem.id);
+                      } else {
+                        const updatedItem = {
+                          ...selectedItem,
+                          images: remainingImages,
+                          slides: selectedItem.slides ? selectedItem.slides.filter((_, idx) => !selectedIndices.has(idx)) : undefined
+                        };
+                        setServiceItems(serviceItems.map(si => si.id === selectedItem.id ? updatedItem : si));
+                        setSelectedItem(updatedItem);
+                        if (liveItem?.id === selectedItem.id) {
+                          setLiveItem(updatedItem);
+                        }
+                        setSelectedIndices(new Set());
+                        setActiveSlideIndex(0);
+                      }
                     }}
                   />
                ) : selectedItem?.type === 'video' ? (
@@ -2242,7 +2288,11 @@ function App() {
               ) : (selectedItem?.slides || selectedItem?.isBibleBook) ? (
                   <PreviewEditor 
                     item={selectedItem} 
-                    onUpdateItem={(newItem) => setSelectedItem(newItem)}
+                    onUpdateItem={handleUpdateItem}
+                    onSaveMasterSongText={handleSaveMasterSongText}
+                    isLive={isLive}
+                    liveItem={liveItem}
+                    liveSlideIndex={liveSlideIndex}
                     activeIndex={activeSlideIndex} 
                     linesPerSlide={
                       selectedItem.type === 'bible'
@@ -2300,7 +2350,7 @@ function App() {
                       }
                       if (selectedItem?.rawText) {
                         let parsedSlides;
-                        if (selectedItem.type === 'song') parsedSlides = parseSongMarkdown(selectedItem.rawText, n).slides;
+                        if (selectedItem.type === 'song') parsedSlides = parseSongMarkdown(selectedItem.rawText, n, selectedItem.arrangement).slides;
                         else if (selectedItem.type === 'liturgy') parsedSlides = parseLiturgyMarkdown(selectedItem.rawText, n).slides;
                         else if (selectedItem.type === 'bible') parsedSlides = parseBibleText(selectedItem.rawText, selectedItem.reference || selectedItem.title, n);
                         

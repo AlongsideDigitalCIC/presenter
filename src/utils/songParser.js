@@ -6,6 +6,7 @@
  * 7 lines -> 4, 3
  * 8 lines -> 4, 4
  * @param {string[]} lines 
+ * @param {number} maxLines
  * @returns {string[][]}
  */
 export function balanceLines(lines, maxLines = 4) {
@@ -20,14 +21,23 @@ export function balanceLines(lines, maxLines = 4) {
 
 /**
  * Parses raw markdown into an array of slide objects.
- * Supports YAML frontmatter and [Verse 1] tags.
- * Also automatically extracts copyright, artist, and CCLI song numbers.
+ * Supports YAML frontmatter, [Verse 1] tags, and dynamic section arrangements.
+ * Also automatically extracts copyright, artist, CCLI song numbers, and arrangements.
+ * 
  * @param {string} rawText 
- * @returns {{ metadata: {title: string, ccli: string, artist: string, copyright: string}, slides: Array<{type: string, content: string[], index: number}> }}
+ * @param {number} maxLines 
+ * @param {string[]|null} customArrangement Optional custom sequence of section names e.g. ['Verse 1', 'Chorus', 'Verse 2', 'Chorus']
+ * @returns {{
+ *   metadata: {title: string, ccli: string, artist: string, copyright: string, arrangement: string[]|null},
+ *   slides: Array<{type: string, content: string[], index: number, arrangementIndex?: number}>,
+ *   uniqueSections: string[],
+ *   naturalOrder: string[],
+ *   arrangement: string[]
+ * }}
  */
-export function parseSongMarkdown(rawText, maxLines = 4) {
+export function parseSongMarkdown(rawText, maxLines = 4, customArrangement = null) {
   let textToParse = (rawText || '').trim();
-  const metadata = { title: 'Unknown Song', ccli: '', artist: '', copyright: '' };
+  const metadata = { title: 'Unknown Song', ccli: '', artist: '', copyright: '', arrangement: null };
   
   // 1. Extract YAML frontmatter metadata if present
   const yamlMatch = textToParse.match(/^---\n([\s\S]*?)\n---/);
@@ -43,6 +53,15 @@ export function parseSongMarkdown(rawText, maxLines = 4) {
         if (['ccli', 'ccli_number', 'ccli song #', 'ccli song no', 'cclisong'].includes(k)) metadata.ccli = val;
         if (['artist', 'author', 'writer', 'composer', 'words and music'].includes(k)) metadata.artist = val;
         if (['copyright', 'rights', 'ccli_copyright'].includes(k)) metadata.copyright = val;
+        if (['arrangement', 'order', 'sequence'].includes(k)) {
+          try {
+            if (val.startsWith('[') && val.endsWith(']')) {
+              metadata.arrangement = val.slice(1, -1).split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+            } else {
+              metadata.arrangement = val.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+            }
+          } catch { /* ignore */ }
+        }
       }
     });
     textToParse = textToParse.replace(yamlMatch[0], '').trim();
@@ -69,7 +88,6 @@ export function parseSongMarkdown(rawText, maxLines = 4) {
   }
 
   if (firstMetaIdx !== -1) {
-    // If the line immediately before firstMetaIdx is an author line with pipes (e.g. "Jonas Myrin | Matt Redman")
     if (firstMetaIdx > 0 && allLines[firstMetaIdx - 1].includes('|') && !allLines[firstMetaIdx - 1].startsWith('[')) {
       firstMetaIdx--;
     }
@@ -95,7 +113,7 @@ export function parseSongMarkdown(rawText, maxLines = 4) {
     textToParse = allLines.slice(0, firstMetaIdx).join('\n').trim();
   }
 
-  // 3. Auto-bracket standard song sections if they aren't bracketed yet (e.g. from SongSelect copy-paste or raw text)
+  // 3. Auto-bracket standard song sections if they aren't bracketed yet
   const SECTION_NAMES = '(?:Verse|Chorus|Pre[\\s-]?Chorus|Post[\\s-]?Chorus|Bridge|Intro|Outro|Ending|Tag|Instrumental|Interlude|Refrain|Vamp|Hook)';
   const unbracketedSectionRegex = new RegExp(`^\\s*(${SECTION_NAMES})\\s*(\\d+)?\\s*$`, 'gim');
   textToParse = textToParse.replace(unbracketedSectionRegex, (match, sec, num) => {
@@ -115,42 +133,125 @@ export function parseSongMarkdown(rawText, maxLines = 4) {
   const sectionSplitRegex = /^\[(.*?)\]$/gm;
   const parts = textToParse.split(sectionSplitRegex);
   
-  let currentGroup = 'Intro'; // Default if no tag at start
+  const sectionsMap = {};
+  const naturalOrder = [];
+  const uniqueSections = [];
+
+  let currentGroup = 'Intro';
+  if (parts[0].trim()) {
+    const lines = parts[0].trim().split('\n').filter(l => l.trim() !== '');
+    if (lines.length > 0) {
+      sectionsMap[currentGroup] = lines;
+      naturalOrder.push(currentGroup);
+      uniqueSections.push(currentGroup);
+    }
+  }
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const groupName = parts[i].trim();
+    const sectionText = parts[i+1] ? parts[i+1].trim() : '';
+    if (!sectionText) continue;
+
+    const lines = sectionText.split('\n').map(l => l.trim()).filter(l => l !== '');
+    if (lines.length === 0) continue;
+
+    if (!sectionsMap[groupName]) {
+      sectionsMap[groupName] = lines;
+      uniqueSections.push(groupName);
+    }
+    naturalOrder.push(groupName);
+  }
+
+  // Determine active sequence
+  const targetArrangement = (Array.isArray(customArrangement) && customArrangement.length > 0)
+    ? customArrangement
+    : (Array.isArray(metadata.arrangement) && metadata.arrangement.length > 0)
+    ? metadata.arrangement
+    : naturalOrder;
+
   const slides = [];
   let slideIndex = 1;
 
-  // Handle text before the very first tag
-  if (parts[0].trim()) {
-      const chunks = balanceLines(parts[0].trim().split('\n').filter(l => l.trim() !== ''), maxLines);
-      chunks.forEach(chunk => {
-          slides.push({
-              type: currentGroup,
-              content: chunk,
-              index: slideIndex++
-          });
+  targetArrangement.forEach((secName, arrIdx) => {
+    let lines = sectionsMap[secName];
+    if (!lines) {
+      const matchKey = Object.keys(sectionsMap).find(k => k.toLowerCase() === secName.toLowerCase());
+      if (matchKey) lines = sectionsMap[matchKey];
+    }
+    if (!lines || lines.length === 0) return;
+
+    const chunks = balanceLines(lines, maxLines);
+    chunks.forEach((chunk, chunkIdx) => {
+      slides.push({
+        type: secName,
+        content: chunk,
+        index: slideIndex++,
+        arrangementIndex: arrIdx,
+        chunkIndex: chunkIdx,
+        totalChunks: chunks.length
       });
+    });
+  });
+
+  return {
+    metadata,
+    slides,
+    uniqueSections,
+    naturalOrder,
+    arrangement: targetArrangement
+  };
+}
+
+/**
+ * Updates a slide's lines inside the master song's raw markdown text.
+ * Replaces the old slide text while keeping section headers, frontmatter, and other slides intact.
+ * 
+ * @param {string} rawText The existing markdown content
+ * @param {string[]} oldLines The original lines of the slide
+ * @param {string[]} newLines The updated lines of the slide
+ * @param {string|null} sectionType The name of the section (e.g. 'Verse 1', 'Chorus')
+ * @returns {string} The updated raw markdown text
+ */
+export function patchSlideInRawText(rawText, oldLines, newLines, sectionType = null) {
+  if (!rawText) return rawText;
+  const oldBlock = (oldLines || []).map(l => l.trim()).filter(Boolean).join('\n');
+  const newBlock = (newLines || []).map(l => l.trim()).filter(Boolean).join('\n');
+  if (!oldBlock || oldBlock === newBlock) return rawText;
+
+  // 1. Direct block match
+  if (rawText.includes(oldBlock)) {
+    return rawText.replace(oldBlock, newBlock);
   }
 
-  // parts format: [text before tag, tag1, text1, tag2, text2...]
-  for (let i = 1; i < parts.length; i += 2) {
-      currentGroup = parts[i].trim();
-      const sectionText = parts[i+1] ? parts[i+1].trim() : '';
-      
-      if (!sectionText) continue;
-
-      const lines = sectionText.split('\n').map(l => l.trim()).filter(l => l !== '');
-      if (lines.length === 0) continue;
-
-      const chunks = balanceLines(lines, maxLines);
-      
-      chunks.forEach(chunk => {
-          slides.push({
-              type: currentGroup,
-              content: chunk,
-              index: slideIndex++
-          });
-      });
+  // 2. CRLF-normalized direct match
+  const normalizedRaw = rawText.replace(/\r\n/g, '\n');
+  if (normalizedRaw.includes(oldBlock)) {
+    const replaced = normalizedRaw.replace(oldBlock, newBlock);
+    return rawText.includes('\r\n') ? replaced.replace(/\n/g, '\r\n') : replaced;
   }
 
-  return { metadata, slides };
+  // 3. Section-scoped replacement
+  if (sectionType) {
+    const secTag = `[${sectionType}]`;
+    const secIdx = normalizedRaw.indexOf(secTag);
+    if (secIdx !== -1) {
+      const before = normalizedRaw.slice(0, secIdx);
+      const after = normalizedRaw.slice(secIdx);
+      const nextSecMatch = after.slice(secTag.length).search(/^\[.*?\]$/m);
+      const secBody = nextSecMatch !== -1 
+        ? after.slice(0, secTag.length + nextSecMatch)
+        : after;
+      const rest = nextSecMatch !== -1
+        ? after.slice(secTag.length + nextSecMatch)
+        : '';
+      
+      if (secBody.includes(oldBlock)) {
+        const updatedSecBody = secBody.replace(oldBlock, newBlock);
+        const result = before + updatedSecBody + rest;
+        return rawText.includes('\r\n') ? result.replace(/\n/g, '\r\n') : result;
+      }
+    }
+  }
+
+  return rawText;
 }

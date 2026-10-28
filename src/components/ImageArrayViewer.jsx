@@ -1,9 +1,6 @@
-import { useState } from 'react';
-import { CheckCircle, Circle, Plus, Minus, Download, Loader2 } from 'lucide-react';
+import { CheckCircle, Circle, Plus, Minus } from 'lucide-react';
 
 export default function ImageArrayViewer({ images, currentIndex, onSelectIndex, item, isServiceItem, onAddSelectedToService, onRemoveSelectedFromService, selectedIndices, onToggleSelection }) {
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
-
   if (!images || images.length === 0) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-[#FAF6F0] border border-[#E4E1DA] rounded-2xl">
@@ -14,42 +11,20 @@ export default function ImageArrayViewer({ images, currentIndex, onSelectIndex, 
 
   const title = item?.title || 'Slide Deck';
 
-  const handleExportPdf = async () => {
-    try {
-      setIsExportingPdf(true);
-      const { createPdfFromSlideImages } = await import('../utils/pptxConverter');
-      const blob = createPdfFromSlideImages(images);
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${title.replace(/\.[^/.]+$/, '')}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 3000);
-    } catch (err) {
-      console.error('Failed to export PDF', err);
-    } finally {
-      setIsExportingPdf(false);
-    }
-  };
-
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
       {/* Header */}
       <div className="flex flex-col mb-6 border-b border-[#E4E1DA] pb-4 gap-4">
-        <div className="flex items-center gap-3">
+        {(!isServiceItem || selectedIndices?.size > 0) && (
+          <div className="flex items-center gap-3">
             {isServiceItem ? (
-              selectedIndices?.size > 0 && (
-                <button
-                  onClick={onRemoveSelectedFromService}
-                  className="flex items-center justify-center h-10 gap-2 px-6 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer"
-                >
-                  <Minus size={16} strokeWidth={3} />
-                  Remove Selected ({selectedIndices.size})
-                </button>
-              )
+              <button
+                onClick={onRemoveSelectedFromService}
+                className="flex items-center justify-center h-10 gap-2 px-6 py-2 bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer"
+              >
+                <Minus size={16} strokeWidth={3} />
+                Remove Selected ({selectedIndices.size})
+              </button>
             ) : (
               <button
                 onClick={onAddSelectedToService}
@@ -59,17 +34,8 @@ export default function ImageArrayViewer({ images, currentIndex, onSelectIndex, 
                 {selectedIndices?.size > 0 ? `Add Selected (${selectedIndices.size})` : 'Add To Service'}
               </button>
             )}
-
-            <button
-              onClick={handleExportPdf}
-              disabled={isExportingPdf}
-              className="flex items-center justify-center h-10 gap-2 px-4 py-2 bg-[#FAF6F0] hover:bg-[#F0EBE1] text-[#1C355E] rounded-xl border border-[#E4E1DA] transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer disabled:opacity-50"
-              title="Download/Export all slides as a PDF file"
-            >
-              {isExportingPdf ? <Loader2 size={15} className="animate-spin text-[#3D7B8C]" /> : <Download size={15} className="text-[#3D7B8C]" />}
-              Export PDF
-            </button>
-        </div>
+          </div>
+        )}
 
         <div className="flex flex-col">
           <h2 className="text-3xl font-extrabold text-[#1C355E] tracking-tight">{title}</h2>

@@ -189,7 +189,7 @@ export default function Sidebar({
         if (activeTab === 'Images') {
             const imgArray = [];
             for await (const [name, handle] of fileObj.handle.entries()) {
-                  if (handle.kind === 'file' && name.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/i)) {
+                  if (handle.kind === 'file' && name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
                        const file = await handle.getFile();
                        imgArray.push({ name, url: URL.createObjectURL(file) });
                    }
