@@ -35,7 +35,12 @@ export function useFolderContents(libraryHandle, folderName, trigger) {
               if (!a.isDirectory && b.isDirectory) return 1;
               return a.name.localeCompare(b.name, undefined, { numeric: true });
            });
-           setFiles(fileList);
+           setFiles(prev => {
+              if (prev.length === fileList.length && prev.every((f, i) => f.name === fileList[i].name && f.isDirectory === fileList[i].isDirectory)) {
+                 return prev;
+              }
+              return fileList;
+           });
         }
       } catch {
         console.warn(`Could not read generic folder: ${folderName}`);

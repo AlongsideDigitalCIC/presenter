@@ -260,6 +260,8 @@ export default function LiveControl({
   };
 
   const [flatAudioFiles, setFlatAudioFiles] = useState([]);
+  const currentLoadedBgmFileRef = useRef('');
+  const bgmUrlRef = useRef(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -293,7 +295,13 @@ export default function LiveControl({
        if (musicFiles && musicFiles.length > 0) {
           await traverse(musicFiles);
           if (!isCancelled) {
-              setFlatAudioFiles(flat.sort((a,b) => a.displayPath.localeCompare(b.displayPath, undefined, {numeric: true})));
+              const sorted = flat.sort((a,b) => a.displayPath.localeCompare(b.displayPath, undefined, {numeric: true}));
+              setFlatAudioFiles(prev => {
+                  if (prev.length === sorted.length && prev.every((f, i) => f.displayPath === sorted[i].displayPath)) {
+                      return prev;
+                  }
+                  return sorted;
+              });
           }
        }
     };
@@ -303,17 +311,39 @@ export default function LiveControl({
 
   useEffect(() => {
     if (!bgmFile) {
+       if (bgmUrlRef.current) {
+          try { URL.revokeObjectURL(bgmUrlRef.current); } catch {}
+          bgmUrlRef.current = null;
+       }
+       currentLoadedBgmFileRef.current = '';
        setBgmUrl(null);
        return;
     }
+
+    // Preserve existing loaded audio if the selected file has not changed
+    if (currentLoadedBgmFileRef.current === bgmFile && bgmUrlRef.current) {
+       return;
+    }
+
     const match = flatAudioFiles?.find(f => f.displayPath === bgmFile);
     if (!match) return;
     
     let isCancelled = false;
     match.handle.getFile().then(file => {
-       if (!isCancelled) setBgmUrl(URL.createObjectURL(file));
+       if (!isCancelled) {
+          if (bgmUrlRef.current) {
+             try { URL.revokeObjectURL(bgmUrlRef.current); } catch {}
+          }
+          const url = URL.createObjectURL(file);
+          bgmUrlRef.current = url;
+          currentLoadedBgmFileRef.current = bgmFile;
+          setBgmUrl(url);
+       }
+    }).catch(e => {
+       console.warn("BGM load error:", e);
     });
-    return () => { isCancelled = true; }
+
+    return () => { isCancelled = true; };
   }, [bgmFile, flatAudioFiles]);
 
   useEffect(() => {

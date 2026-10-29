@@ -28,12 +28,12 @@ export function useFileSystemWatcher(libraryHandle) {
           // A simple timer that prompts the consumer to check for updates.
           interval = setInterval(() => {
             setTrigger(t => t + 1);
-          }, 5000);
-          console.log("FileSystemObserver not found. Using polling fallback (5s).");
+          }, 10000);
+          console.log("FileSystemObserver not found. Using polling fallback (10s).");
         }
       } catch (err) {
          console.warn("Watcher initialization failed, falling back to polling", err);
-         interval = setInterval(() => setTrigger(t => t + 1), 5000);
+         interval = setInterval(() => setTrigger(t => t + 1), 10000);
       }
     };
 

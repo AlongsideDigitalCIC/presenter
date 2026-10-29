@@ -825,9 +825,7 @@ function App() {
                    const minPayload = livePayloadRef.current ? { ...livePayloadRef.current } : { isLive: false };
                    delete minPayload.liveItem;
                    ws.send(JSON.stringify({ type: 'state', payload: minPayload, serviceItems: minItems }));
-                   if (livePayloadRef.current) {
-                       setTriggerMediaSync(prev => prev + 1);
-                   }
+                   setTriggerMediaSync(prev => prev + 1);
                } else if (data.type === 'auth_verify') {
                    const clientId = data.clientId;
                    const submittedPin = (data.pin || '').trim();
@@ -1007,10 +1005,26 @@ function App() {
 
       // Sync active category background media (song / bible / liturgy) for Network Live Viewers
       if (liveItem?.type === 'song' || liveItem?.type === 'bible' || liveItem?.type === 'liturgy') {
-        const catBg = displaySettings.backgrounds?.[liveItem.type];
-        if (catBg?.bgType === 'image' && catBg.bgImageUrl) enqueueBlob(catBg.bgImageUrl);
-        if (catBg?.bgType === 'video' && catBg.bgVideoUrl) enqueueBlob(catBg.bgVideoUrl);
+        const catBg = displaySettings.backgrounds?.[liveItem.type] || {
+          bgImageUrl: displaySettings.bgImageUrl,
+          bgVideoUrl: displaySettings.bgVideoUrl
+        };
+        if (catBg?.bgImageUrl) enqueueBlob(catBg.bgImageUrl);
+        if (catBg?.bgVideoUrl) enqueueBlob(catBg.bgVideoUrl);
       }
+
+      // Sync all configured category backgrounds in displaySettings
+      if (displaySettings.backgrounds && typeof displaySettings.backgrounds === 'object') {
+        ['song', 'bible', 'liturgy', 'countdown'].forEach(c => {
+          const b = displaySettings.backgrounds[c];
+          if (b?.bgImageUrl) enqueueBlob(b.bgImageUrl);
+          if (b?.bgVideoUrl) enqueueBlob(b.bgVideoUrl);
+        });
+      }
+
+      // Sync global fallback backgrounds
+      if (displaySettings.bgImageUrl) enqueueBlob(displaySettings.bgImageUrl);
+      if (displaySettings.bgVideoUrl) enqueueBlob(displaySettings.bgVideoUrl);
 
       // Sync active countdown background media when countdown is active
       if (countdown?.active) {
@@ -1281,6 +1295,9 @@ function App() {
      return () => bc.close();
    }, []);
 
+  const networkMediaCacheRef = useRef({});
+  const rawNetworkPayloadRef = useRef(null);
+
   // Network Viewer WebSocket Initialization
   useEffect(() => {
     if (!isNetworkView) return;
@@ -1289,7 +1306,36 @@ function App() {
     const ws = new WebSocket(`ws://${host}:5179`);
     
     ws.onopen = () => {
-       ws.send(JSON.stringify({ type: 'request_state' }));
+       ws.send(JSON.stringify({ type: 'request_state', role: 'live_viewer' }));
+    };
+
+    const resolveAppNetworkPayload = (raw, cache) => {
+      if (!raw || typeof raw !== 'object') return raw;
+      const copy = { ...raw };
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const map = (u) => {
+        if (typeof u !== 'string' || !u.startsWith('blob:')) return u;
+        if (cache && cache[u]) return cache[u];
+        return isLocalHost ? u : null;
+      };
+      if (copy.activeMediaUrl) copy.activeMediaUrl = map(copy.activeMediaUrl);
+      if (copy.logoUrl) copy.logoUrl = map(copy.logoUrl);
+      if (copy.bgImageUrl) copy.bgImageUrl = map(copy.bgImageUrl);
+      if (copy.bgVideoUrl) copy.bgVideoUrl = map(copy.bgVideoUrl);
+      if (copy.backgrounds && typeof copy.backgrounds === 'object') {
+        const bgs = { ...copy.backgrounds };
+        ['song', 'bible', 'liturgy', 'countdown'].forEach(cat => {
+          if (bgs[cat]) {
+            bgs[cat] = {
+              ...bgs[cat],
+              bgImageUrl: map(bgs[cat].bgImageUrl),
+              bgVideoUrl: map(bgs[cat].bgVideoUrl)
+            };
+          }
+        });
+        copy.backgrounds = bgs;
+      }
+      return copy;
     };
 
     let pendingMediaHeader = null;
@@ -1297,13 +1343,10 @@ function App() {
        if (event.data instanceof Blob) {
            if (pendingMediaHeader) {
                const url = URL.createObjectURL(event.data);
-               setNetworkPayload(prev => {
-                   if (!prev) return prev;
-                   const copy = { ...prev };
-                   if (copy.activeMediaUrl === pendingMediaHeader.id) copy.activeMediaUrl = url;
-                   if (copy.logoUrl === pendingMediaHeader.id) copy.logoUrl = url;
-                   return copy;
-               });
+               networkMediaCacheRef.current[pendingMediaHeader.id] = url;
+               if (rawNetworkPayloadRef.current) {
+                  setNetworkPayload(resolveAppNetworkPayload(rawNetworkPayloadRef.current, networkMediaCacheRef.current));
+               }
                pendingMediaHeader = null;
            }
            return;
@@ -1315,7 +1358,8 @@ function App() {
                return;
            }
            if (data.type === 'state' && data.payload) {
-               setNetworkPayload(data.payload);
+               rawNetworkPayloadRef.current = data.payload;
+               setNetworkPayload(resolveAppNetworkPayload(data.payload, networkMediaCacheRef.current));
            }
        } catch (err) {
            console.error('Network Viewer WS Error', err);

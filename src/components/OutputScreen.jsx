@@ -1147,15 +1147,16 @@ export default function OutputScreen({ payload, isMaster = false, isProjector = 
        payload?.mediaType === 'liturgy'
     );
 
+    const catBg = isTextCategory ? payload?.backgrounds?.[payload.mediaType] : null;
     const activeBg = isTextCategory
-       ? (payload?.backgrounds?.[payload.mediaType] || {
-            bgType: payload?.bgType || 'color',
-            bgColor: payload?.bgColor || '#000000',
-            bgImageUrl: payload?.bgImageUrl,
-            bgVideoUrl: payload?.bgVideoUrl,
-            bgDim: payload?.bgDim !== undefined ? payload.bgDim : 0.3,
-            bgVideoLoop: payload?.bgVideoLoop ?? true,
-         })
+       ? {
+            bgType: catBg?.bgType || payload?.bgType || 'color',
+            bgColor: catBg?.bgColor || payload?.bgColor || '#000000',
+            bgImageUrl: catBg?.bgImageUrl || payload?.bgImageUrl || null,
+            bgVideoUrl: catBg?.bgVideoUrl || payload?.bgVideoUrl || null,
+            bgDim: catBg?.bgDim !== undefined ? catBg.bgDim : (payload?.bgDim !== undefined ? payload.bgDim : 0.3),
+            bgVideoLoop: catBg?.bgVideoLoop ?? payload?.bgVideoLoop ?? true,
+         }
        : {
             bgType: 'color',
             bgColor: '#000000',

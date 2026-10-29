@@ -55,6 +55,7 @@ const LiveViewer = () => {
   const [showHud, setShowHud] = useState(true);
   const hudTimerRef = useRef(null);
   const mediaMapCache = useRef({});
+  const rawPayloadRef = useRef(null);
   const pendingMediaRef = useRef(null);
   const wsRef = useRef(null);
 
@@ -102,10 +103,9 @@ const LiveViewer = () => {
                    const localUrl = URL.createObjectURL(finalBlob);
                    mediaMapCache.current[id] = localUrl;
                    
-                   setNetworkPayload(prev => {
-                      if (!prev) return prev;
-                      return resolvePayloadMediaUrls(prev, mediaMapCache.current);
-                   });
+                   if (rawPayloadRef.current) {
+                      setNetworkPayload(resolvePayloadMediaUrls(rawPayloadRef.current, mediaMapCache.current));
+                   }
                    pendingMediaRef.current = null;
                }
                return;
@@ -114,6 +114,7 @@ const LiveViewer = () => {
            try {
                const data = JSON.parse(event.data);
                if (data?.type === 'state') {
+                 rawPayloadRef.current = data.payload;
                  const resolved = resolvePayloadMediaUrls(data.payload, mediaMapCache.current);
                  setNetworkPayload(resolved);
               } else if (data?.type === 'playback') {
