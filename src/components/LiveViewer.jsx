@@ -88,6 +88,7 @@ const LiveViewer = () => {
     
     const connect = () => {
         const ws = new WebSocket(`ws://${window.location.hostname}:5179`);
+        ws.binaryType = 'arraybuffer';
         wsRef.current = ws;
         
         ws.onopen = () => {
@@ -95,11 +96,15 @@ const LiveViewer = () => {
         };
         
         ws.onmessage = async (event) => {
-           if (event.data instanceof Blob) {
+           const isBinary = event.data instanceof ArrayBuffer || event.data instanceof Blob;
+           if (isBinary) {
                if (pendingMediaRef.current) {
                    const { id, mime } = pendingMediaRef.current;
-                   const blob = event.data;
-                   const finalBlob = new Blob([blob], { type: mime });
+                   let detectedMime = mime;
+                   if (!detectedMime || detectedMime === 'application/octet-stream') {
+                       detectedMime = 'video/mp4';
+                   }
+                   const finalBlob = new Blob([event.data], { type: detectedMime });
                    const localUrl = URL.createObjectURL(finalBlob);
                    mediaMapCache.current[id] = localUrl;
                    

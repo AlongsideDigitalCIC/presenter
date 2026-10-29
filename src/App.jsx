@@ -1056,7 +1056,13 @@ function App() {
           await new Promise(r => setTimeout(r, 150));
 
           if (wsRef.current?.readyState === 1) {
-            wsRef.current.send(JSON.stringify({ type: 'media_header', id: targetUrl, mime: blob.type }));
+            let mimeType = blob.type;
+            if (!mimeType || mimeType === 'application/octet-stream') {
+              const isVid = (displaySettings.backgrounds && Object.values(displaySettings.backgrounds).some(b => b?.bgVideoUrl === targetUrl)) ||
+                            displaySettings.bgVideoUrl === targetUrl;
+              mimeType = isVid ? 'video/mp4' : 'image/jpeg';
+            }
+            wsRef.current.send(JSON.stringify({ type: 'media_header', id: targetUrl, mime: mimeType }));
             wsRef.current.send(buffer);
           }
           setSyncedMediaUrl(targetUrl);
@@ -1343,10 +1349,17 @@ function App() {
     };
 
     let pendingMediaHeader = null;
+    ws.binaryType = 'arraybuffer';
     ws.onmessage = async (event) => {
-       if (event.data instanceof Blob) {
+       const isBinary = event.data instanceof ArrayBuffer || event.data instanceof Blob;
+       if (isBinary) {
            if (pendingMediaHeader) {
-               const url = URL.createObjectURL(event.data);
+               let mimeType = pendingMediaHeader.mime;
+               if (!mimeType || mimeType === 'application/octet-stream') {
+                   mimeType = 'video/mp4';
+               }
+               const finalBlob = new Blob([event.data], { type: mimeType });
+               const url = URL.createObjectURL(finalBlob);
                networkMediaCacheRef.current[pendingMediaHeader.id] = url;
                if (rawNetworkPayloadRef.current) {
                   setNetworkPayload(resolveAppNetworkPayload(rawNetworkPayloadRef.current, networkMediaCacheRef.current));

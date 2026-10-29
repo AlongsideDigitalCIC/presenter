@@ -8,9 +8,23 @@ function bindAutoPlayMutedVideo(el) {
   if (!el) return;
   el.defaultMuted = true;
   el.muted = true;
-  if (el.paused) {
-    el.play().catch(() => {});
-  }
+  try {
+    el.setAttribute('muted', '');
+    el.setAttribute('playsinline', '');
+  } catch { /* ignore */ }
+
+  const playSafely = () => {
+    el.defaultMuted = true;
+    el.muted = true;
+    if (el.paused) {
+      el.play().catch(() => {});
+    }
+  };
+
+  playSafely();
+  el.oncanplay = playSafely;
+  el.onloadedmetadata = playSafely;
+  el.onloadeddata = playSafely;
 }
 
 export function AutoFitLyrics({

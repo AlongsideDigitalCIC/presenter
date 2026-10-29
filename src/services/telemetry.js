@@ -2,7 +2,7 @@ const TELEMETRY_ENDPOINT = 'https://admincentre.alongsidedigital.co.uk/api/ping'
 const OPT_OUT_KEY = 'presenter_telemetry_opt_out';
 const USER_ID_KEY = 'presenter_anonymous_user_id';
 const LAST_PING_KEY = 'presenter_last_telemetry_ping';
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 
 /**
  * Returns whether anonymous telemetry is enabled (default: true).

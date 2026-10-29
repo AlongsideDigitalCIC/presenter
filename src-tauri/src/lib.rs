@@ -383,7 +383,9 @@ pub fn run() {
             let ws_route = warp::ws()
                 .and(clients_filter)
                 .map(|ws: warp::ws::Ws, clients| {
-                    ws.on_upgrade(move |socket| client_connection(socket, clients))
+                    ws.max_message_size(256 * 1024 * 1024)
+                      .max_frame_size(256 * 1024 * 1024)
+                      .on_upgrade(move |socket| client_connection(socket, clients))
                 });
             
             std::thread::spawn(move || {
