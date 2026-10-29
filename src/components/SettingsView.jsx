@@ -3,10 +3,11 @@ import {
   Palette, Image as ImageIcon, Video as VideoIcon, Sliders, RefreshCw, Trash2, 
   Upload, Sparkles, Sun, Eye, Play, ArrowRightLeft, BookOpen, ScrollText,
   ShieldCheck, FileText, Download, CheckCircle2, Info,
-  Megaphone, Timer, Bell, Clock
+  Megaphone, Timer, Bell, Clock, Activity
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { getSongHistory, exportHistoryCSV } from '../services/historyService';
+import { isTelemetryEnabled, setTelemetryEnabled, getAnonymousUserId } from '../services/telemetry';
 import { isTauri } from '../utils/env';
 import { AnnouncementOverlay, CountdownOverlay, SlideTransitionContainer, AutoFitLyrics, AutoFitLiturgy } from './OutputScreen';
 import { getFontFamilyCss } from '../utils/fonts';
@@ -168,6 +169,13 @@ export default function SettingsView({
 }) {
   const [activeSettingsTab, setActiveSettingsTab] = useState('display');
   const [bgCategory, setBgCategory] = useState('song'); // 'song' | 'bible' | 'liturgy'
+  const [telemetryOptIn, setTelemetryOptIn] = useState(isTelemetryEnabled());
+  const [anonUserId] = useState(getAnonymousUserId());
+
+  const handleToggleTelemetry = (enabled) => {
+    setTelemetryOptIn(enabled);
+    setTelemetryEnabled(enabled);
+  };
 
   // Announcement & Countdown Overlay Settings State
   const [announcementSettings, setAnnouncementSettings] = useState(() => {
@@ -1632,6 +1640,51 @@ export default function SettingsView({
                     >
                        Change Media Library Folder
                     </button>
+                </div>
+              </div>
+
+              {/* Anonymous Usage Analytics Card */}
+              <div className="bg-white border border-[#E4E1DA] rounded-2xl p-6 flex flex-col gap-4 shadow-sm lg:col-span-2">
+                <div className="text-xs font-bold text-[#3D7B8C] uppercase tracking-widest flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity size={16} /> Anonymous Usage & Diagnostics
+                  </div>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${telemetryOptIn ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-[#FAF6F0] text-[#526075] border border-[#E4E1DA]'}`}>
+                    {telemetryOptIn ? 'Active' : 'Disabled'}
+                  </span>
+                </div>
+                
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="max-w-2xl">
+                    <h4 className="text-sm font-bold text-[#1C355E]">Help improve Presenter with anonymous usage statistics</h4>
+                    <p className="text-xs text-[#526075] mt-1.5 leading-relaxed">
+                      Presenter periodically sends anonymous diagnostic telemetry (app version, operating system, and an anonymous installation ID) to help us understand usage and stability. No presentation files, song lyrics, church names, or personal details are ever collected.
+                    </p>
+                    <p className="text-[10px] text-[#526075]/70 mt-2 font-mono">
+                      Anonymous Device ID: {anonUserId}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs font-semibold text-[#1C355E]">
+                      {telemetryOptIn ? 'Enabled' : 'Opted Out'}
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={telemetryOptIn}
+                      onClick={() => handleToggleTelemetry(!telemetryOptIn)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#3D7B8C]/40 ${
+                        telemetryOptIn ? 'bg-[#3D7B8C]' : 'bg-[#E4E1DA]'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          telemetryOptIn ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 

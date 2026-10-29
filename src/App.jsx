@@ -26,6 +26,7 @@ import CentralAudioPlayer from './components/CentralAudioPlayer'
 import RemoteControl from './components/RemoteControl'
 import { addSongPlay } from './services/historyService'
 import { resolveTargetMonitor } from './utils/monitorUtils'
+import { sendTelemetryPing } from './services/telemetry'
 
 const TABS = ['Service', 'Songs', 'Images', 'Bible', 'Liturgy', 'Videos', 'Music'];
 
@@ -333,6 +334,9 @@ function App() {
 
   // Handshake and Init
   useEffect(() => {
+    // Fire anonymous usage ping silently in background (offline-tolerant)
+    sendTelemetryPing();
+
     const init = async () => {
       try {
         // 1. Directory Handle (Synchronous LocalStorage was handled above)
