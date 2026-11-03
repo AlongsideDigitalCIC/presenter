@@ -11,6 +11,7 @@ function bindAutoPlayMutedVideo(el) {
   try {
     el.setAttribute('muted', '');
     el.setAttribute('playsinline', '');
+    el.setAttribute('autoplay', '');
   } catch { /* ignore */ }
 
   const playSafely = () => {

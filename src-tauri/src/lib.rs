@@ -213,7 +213,10 @@ async fn client_connection(ws: WebSocket, clients: Clients) {
     while let Some(result) = client_ws_rcv.next().await {
         let msg = match result {
             Ok(msg) => msg,
-            Err(_) => break,
+            Err(e) => {
+                eprintln!("[WS] Client {} connection ended: {:?}", my_id, e);
+                break;
+            }
         };
 
         let is_current_master = {
@@ -225,11 +228,15 @@ async fn client_connection(ws: WebSocket, clients: Clients) {
             // Only the master Presenter instance is allowed to broadcast binary assets (media sync)
             if is_current_master {
                 let map = clients.lock().unwrap();
+                let client_count = map.len().saturating_sub(1);
+                eprintln!("[WS] Master broadcasting binary frame ({} bytes) to {} connected follower(s)", msg.as_bytes().len(), client_count);
                 for (&id, info) in map.iter() {
                     if id != my_id {
                         let _ = info.sender.send(msg.clone());
                     }
                 }
+            } else {
+                eprintln!("[WS] Ignored binary frame from non-master connection ID: {}", my_id);
             }
             continue;
         }
@@ -245,12 +252,15 @@ async fn client_connection(ws: WebSocket, clients: Clients) {
                         let mut map = clients.lock().unwrap();
                         if let Some(info) = map.get_mut(&my_id) {
                             info.is_master = true;
+                            eprintln!("[WS] Master successfully authenticated on client ID {}", my_id);
                             let ack = serde_json::json!({
                                 "type": "master_registered",
                                 "success": true
                             });
                             let _ = info.sender.send(Message::text(ack.to_string()));
                         }
+                    } else {
+                        eprintln!("[WS] Master registration rejected for client ID {}: token mismatch", my_id);
                     }
                     continue;
                 }

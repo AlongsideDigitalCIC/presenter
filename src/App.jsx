@@ -94,6 +94,15 @@ function FolderExplorer({ folderName, handle, onSelectItem, onBack }) {
     );
 }
 
+const blobRegistry = new Map();
+const registerBlobUrl = (url, blob) => {
+  if (url && blob) blobRegistry.set(url, blob);
+  return url;
+};
+const unregisterBlobUrl = (url) => {
+  if (url) blobRegistry.delete(url);
+};
+
 const initialLibraryPath = localStorage.getItem('presenter-library-path');
 const initialHandle = (isTauri() && initialLibraryPath) ? new TauriDirectoryHandle(initialLibraryPath.replace(/\\/g, '/'), 'Presenter') : null;
 
@@ -418,7 +427,11 @@ function App() {
 
             const makeUrl = (blob) => {
               if (!blob) return null;
-              try { return URL.createObjectURL(blob); } catch { return null; }
+              try {
+                const u = URL.createObjectURL(blob);
+                registerBlobUrl(u, blob);
+                return u;
+              } catch { return null; }
             };
 
             const songImgUrl = makeUrl(songImgBlob);
@@ -615,8 +628,10 @@ function App() {
     const prevUrl = displaySettings.backgrounds?.[category]?.bgImageUrl;
     if (prevUrl && prevUrl.startsWith('blob:')) {
       try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+      unregisterBlobUrl(prevUrl);
     }
     const url = URL.createObjectURL(file);
+    registerBlobUrl(url, file);
     const { set } = await import('idb-keyval');
     await set(`presenter_bg_image_blob_${category}`, file);
     if (category === 'song') {
@@ -639,6 +654,7 @@ function App() {
     const prevUrl = displaySettings.backgrounds?.[category]?.bgImageUrl;
     if (prevUrl && prevUrl.startsWith('blob:')) {
       try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+      unregisterBlobUrl(prevUrl);
     }
     const { del } = await import('idb-keyval');
     await del(`presenter_bg_image_blob_${category}`);
@@ -662,8 +678,10 @@ function App() {
     const prevUrl = displaySettings.backgrounds?.[category]?.bgVideoUrl;
     if (prevUrl && prevUrl.startsWith('blob:')) {
       try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+      unregisterBlobUrl(prevUrl);
     }
     const url = URL.createObjectURL(file);
+    registerBlobUrl(url, file);
     const { set } = await import('idb-keyval');
     await set(`presenter_bg_video_blob_${category}`, file);
     if (category === 'song') {
@@ -686,6 +704,7 @@ function App() {
     const prevUrl = displaySettings.backgrounds?.[category]?.bgVideoUrl;
     if (prevUrl && prevUrl.startsWith('blob:')) {
       try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+      unregisterBlobUrl(prevUrl);
     }
     const { del } = await import('idb-keyval');
     await del(`presenter_bg_video_blob_${category}`);
@@ -1040,6 +1059,64 @@ function App() {
       const pendingUrls = urlsToSync.filter(u => !uploadedUrlsRef.current.has(u));
       if (pendingUrls.length === 0) return;
 
+      const getBlobForUrl = async (u) => {
+        if (!u || typeof u !== 'string') return null;
+        if (blobRegistry.has(u)) return blobRegistry.get(u);
+
+        const currentBlobs = backgroundBlobsRef.current || {};
+        const bgs = displaySettings.backgrounds || {};
+        for (const cat of ['song', 'bible', 'liturgy', 'countdown']) {
+          if (bgs[cat]?.bgVideoUrl === u && currentBlobs[`${cat}VidBlob`]) {
+            registerBlobUrl(u, currentBlobs[`${cat}VidBlob`]);
+            return currentBlobs[`${cat}VidBlob`];
+          }
+          if (bgs[cat]?.bgImageUrl === u && currentBlobs[`${cat}ImgBlob`]) {
+            registerBlobUrl(u, currentBlobs[`${cat}ImgBlob`]);
+            return currentBlobs[`${cat}ImgBlob`];
+          }
+        }
+        if (displaySettings.bgVideoUrl === u && currentBlobs.songVidBlob) {
+          registerBlobUrl(u, currentBlobs.songVidBlob);
+          return currentBlobs.songVidBlob;
+        }
+        if (displaySettings.bgImageUrl === u && currentBlobs.songImgBlob) {
+          registerBlobUrl(u, currentBlobs.songImgBlob);
+          return currentBlobs.songImgBlob;
+        }
+
+        try {
+          const { get } = await import('idb-keyval');
+          for (const cat of ['song', 'bible', 'liturgy', 'countdown']) {
+            if (bgs[cat]?.bgVideoUrl === u || displaySettings.bgVideoUrl === u) {
+              const b = (await get(`presenter_bg_video_blob_${cat}`)) || (cat === 'song' ? await get('presenter_bg_video_blob') : null);
+              if (b) { registerBlobUrl(u, b); return b; }
+            }
+            if (bgs[cat]?.bgImageUrl === u || displaySettings.bgImageUrl === u) {
+              const b = (await get(`presenter_bg_image_blob_${cat}`)) || (cat === 'song' ? await get('presenter_bg_image_blob') : null);
+              if (b) { registerBlobUrl(u, b); return b; }
+            }
+          }
+          if (u === logoUrl) {
+            const b = await get('presenter_logo_blob');
+            if (b) { registerBlobUrl(u, b); return b; }
+          }
+        } catch (e) {
+          console.warn("getBlobForUrl IDB fallback failed:", e);
+        }
+
+        try {
+          const res = await fetch(u);
+          if (res.ok) {
+            const b = await res.blob();
+            registerBlobUrl(u, b);
+            return b;
+          }
+        } catch (e) {
+          console.warn("getBlobForUrl fetch fallback failed:", e);
+        }
+        return null;
+      };
+
       for (const targetUrl of pendingUrls) {
         if (isCancelled) break;
         uploadedUrlsRef.current.add(targetUrl);
@@ -1047,13 +1124,20 @@ function App() {
         if (wsRef.current?.readyState === 1) wsRef.current.send(JSON.stringify({ type: 'sync-start', id: targetUrl }));
 
         try {
-          const res = await fetch(targetUrl);
-          const blob = await res.blob();
+          const blob = await getBlobForUrl(targetUrl);
+          if (!blob) {
+            console.warn("Could not retrieve blob for sync:", targetUrl);
+            uploadedUrlsRef.current.delete(targetUrl);
+            if (wsRef.current?.readyState === 1) wsRef.current.send(JSON.stringify({ type: 'sync-end', id: targetUrl }));
+            setIsSyncingMedia(false);
+            continue;
+          }
+
           const buffer = await blob.arrayBuffer();
 
           // Yield execution to the main thread briefly so the Projector's <video> element 
           // can smoothly mount and start playing locally before we block the thread to send.
-          await new Promise(r => setTimeout(r, 150));
+          await new Promise(r => setTimeout(r, 100));
 
           if (wsRef.current?.readyState === 1) {
             let mimeType = blob.type;
@@ -1064,8 +1148,10 @@ function App() {
             }
             wsRef.current.send(JSON.stringify({ type: 'media_header', id: targetUrl, mime: mimeType }));
             wsRef.current.send(buffer);
+            setSyncedMediaUrl(targetUrl);
+          } else {
+            uploadedUrlsRef.current.delete(targetUrl);
           }
-          setSyncedMediaUrl(targetUrl);
         } catch (e) {
           uploadedUrlsRef.current.delete(targetUrl);
           console.error("Sync Media Failed:", e);
@@ -1360,6 +1446,9 @@ function App() {
                }
                const finalBlob = new Blob([event.data], { type: mimeType });
                const url = URL.createObjectURL(finalBlob);
+               if (networkMediaCacheRef.current[pendingMediaHeader.id] && networkMediaCacheRef.current[pendingMediaHeader.id] !== url) {
+                   try { URL.revokeObjectURL(networkMediaCacheRef.current[pendingMediaHeader.id]); } catch {}
+               }
                networkMediaCacheRef.current[pendingMediaHeader.id] = url;
                if (rawNetworkPayloadRef.current) {
                   setNetworkPayload(resolveAppNetworkPayload(rawNetworkPayloadRef.current, networkMediaCacheRef.current));
@@ -1383,7 +1472,15 @@ function App() {
        }
     };
 
-    return () => ws.close();
+    return () => {
+      ws.close();
+      Object.values(networkMediaCacheRef.current).forEach(u => {
+        if (u && typeof u === 'string' && u.startsWith('blob:')) {
+          try { URL.revokeObjectURL(u); } catch {}
+        }
+      });
+      networkMediaCacheRef.current = {};
+    };
   }, [isNetworkView]);
 
   const isInitialLoad = useRef(true);

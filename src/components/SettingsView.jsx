@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { getSongHistory, exportHistoryCSV } from '../services/historyService';
-import { isTelemetryEnabled, setTelemetryEnabled, getAnonymousUserId } from '../services/telemetry';
+import { isTelemetryEnabled, setTelemetryEnabled } from '../services/telemetry';
 import { isTauri } from '../utils/env';
 import { AnnouncementOverlay, CountdownOverlay, SlideTransitionContainer, AutoFitLyrics, AutoFitLiturgy } from './OutputScreen';
 import { getFontFamilyCss } from '../utils/fonts';
@@ -170,7 +170,6 @@ export default function SettingsView({
   const [activeSettingsTab, setActiveSettingsTab] = useState('display');
   const [bgCategory, setBgCategory] = useState('song'); // 'song' | 'bible' | 'liturgy'
   const [telemetryOptIn, setTelemetryOptIn] = useState(isTelemetryEnabled());
-  const [anonUserId] = useState(getAnonymousUserId());
 
   const handleToggleTelemetry = (enabled) => {
     setTelemetryOptIn(enabled);
@@ -1658,10 +1657,7 @@ export default function SettingsView({
                   <div className="max-w-2xl">
                     <h4 className="text-sm font-bold text-[#1C355E]">Help improve Presenter with anonymous usage statistics</h4>
                     <p className="text-xs text-[#526075] mt-1.5 leading-relaxed">
-                      Presenter periodically sends anonymous diagnostic telemetry (app version, operating system, and an anonymous installation ID) to help us understand usage and stability. No presentation files, song lyrics, church names, or personal details are ever collected.
-                    </p>
-                    <p className="text-[10px] text-[#526075]/70 mt-2 font-mono">
-                      Anonymous Device ID: {anonUserId}
+                      Presenter periodically sends anonymous diagnostic telemetry (app version and operating system) to help us understand usage and stability. No presentation files, song lyrics, church names, or personal details are ever collected.
                     </p>
                   </div>
                   

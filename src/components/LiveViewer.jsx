@@ -84,6 +84,23 @@ const LiveViewer = () => {
   }, []);
 
   useEffect(() => {
+    const unlockVideos = () => {
+      document.querySelectorAll('video').forEach(vid => {
+        vid.muted = true;
+        if (vid.paused) {
+          vid.play().catch(() => {});
+        }
+      });
+    };
+    window.addEventListener('click', unlockVideos, { passive: true });
+    window.addEventListener('touchstart', unlockVideos, { passive: true });
+    return () => {
+      window.removeEventListener('click', unlockVideos);
+      window.removeEventListener('touchstart', unlockVideos);
+    };
+  }, []);
+
+  useEffect(() => {
     let reconnectTimeout;
     
     const connect = () => {
@@ -106,6 +123,10 @@ const LiveViewer = () => {
                    }
                    const finalBlob = new Blob([event.data], { type: detectedMime });
                    const localUrl = URL.createObjectURL(finalBlob);
+
+                   if (mediaMapCache.current[id] && mediaMapCache.current[id] !== localUrl) {
+                       try { URL.revokeObjectURL(mediaMapCache.current[id]); } catch {}
+                   }
                    mediaMapCache.current[id] = localUrl;
                    
                    if (rawPayloadRef.current) {
@@ -148,6 +169,12 @@ const LiveViewer = () => {
            wsRef.current.onclose = null;
            wsRef.current.close();
        }
+       Object.values(mediaMapCache.current).forEach(url => {
+           if (url && typeof url === 'string' && url.startsWith('blob:')) {
+               try { URL.revokeObjectURL(url); } catch {}
+           }
+       });
+       mediaMapCache.current = {};
     };
   }, []);
 
