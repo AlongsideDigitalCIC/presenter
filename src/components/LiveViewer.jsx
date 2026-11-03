@@ -183,18 +183,11 @@ const LiveViewer = () => {
       onMouseMove={revealHud}
       onTouchStart={revealHud}
       onDoubleClick={toggleFullscreen}
-      className={`w-[100dvw] h-[100dvh] bg-black overflow-hidden flex items-center justify-center relative font-sans select-none ${
+      className={`w-[100dvw] h-[100dvh] bg-black overflow-hidden relative font-sans select-none ${
         !showHud && isFullscreen ? 'cursor-none' : 'cursor-default'
       }`}
     >
-      {/* True 16:9 broadcast stage: fills 100% on 1920x1080 (including Windows 125% / 150% DPI scaling) without aspect distortion */}
-      <div
-        className="relative bg-black flex-shrink-0 overflow-hidden"
-        style={{
-          width: 'min(100dvw, calc(100dvh * 16 / 9))',
-          height: 'min(100dvh, calc(100dvw * 9 / 16))'
-        }}
-      >
+      <div className="w-full h-full relative overflow-hidden">
         <OutputScreen
           payload={networkPayload || { isLive: false }}
           isLiveBroadcast={true}
