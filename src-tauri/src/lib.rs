@@ -1,5 +1,6 @@
 use tauri::Manager;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio::sync::mpsc;
 use warp::ws::{Message, WebSocket};
@@ -193,7 +194,7 @@ async fn close_projector_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 
-async fn client_connection(ws: WebSocket, clients: Clients) {
+async fn client_connection(ws: WebSocket, clients: Clients, addr: Option<SocketAddr>) {
     let (mut client_ws_sender, mut client_ws_rcv) = ws.split();
     let (client_sender, mut client_rcv) = mpsc::unbounded_channel();
 
@@ -210,6 +211,8 @@ async fn client_connection(ws: WebSocket, clients: Clients) {
         }
     });
 
+    let is_socket_loopback = addr.map(|a| a.ip().is_loopback()).unwrap_or(false);
+
     while let Some(result) = client_ws_rcv.next().await {
         let msg = match result {
             Ok(msg) => msg,
@@ -219,10 +222,20 @@ async fn client_connection(ws: WebSocket, clients: Clients) {
             }
         };
 
-        let is_current_master = {
+        let mut is_current_master = {
             let map = clients.lock().unwrap();
             map.get(&my_id).map(|info| info.is_master).unwrap_or(false)
         };
+
+        // If connection is directly from loopback (127.0.0.1) on the host machine, allow it to act as master
+        if !is_current_master && is_socket_loopback {
+            let mut map = clients.lock().unwrap();
+            if let Some(info) = map.get_mut(&my_id) {
+                info.is_master = true;
+                is_current_master = true;
+                eprintln!("[WS] Localhost connection authenticated as master: client ID {}", my_id);
+            }
+        }
 
         if msg.is_binary() {
             // Only the master Presenter instance is allowed to broadcast binary assets (media sync)
@@ -248,7 +261,10 @@ async fn client_connection(ws: WebSocket, clients: Clients) {
                 // 1. Handle Master registration handshake
                 if msg_type == "master_register" {
                     let token = val.get("token").and_then(|v| v.as_str()).unwrap_or("");
-                    if token == get_or_create_master_token() {
+                    let is_local_claim = val.get("local").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let is_valid = (token == get_or_create_master_token()) || (is_local_claim && is_socket_loopback) || is_socket_loopback;
+
+                    if is_valid {
                         let mut map = clients.lock().unwrap();
                         if let Some(info) = map.get_mut(&my_id) {
                             info.is_master = true;
@@ -260,7 +276,7 @@ async fn client_connection(ws: WebSocket, clients: Clients) {
                             let _ = info.sender.send(Message::text(ack.to_string()));
                         }
                     } else {
-                        eprintln!("[WS] Master registration rejected for client ID {}: token mismatch", my_id);
+                        eprintln!("[WS] Master registration rejected for client ID {}: unauthorized", my_id);
                     }
                     continue;
                 }
@@ -391,11 +407,12 @@ pub fn run() {
             let clients_filter = warp::any().map(move || clients.clone());
             
             let ws_route = warp::ws()
+                .and(warp::addr::remote())
                 .and(clients_filter)
-                .map(|ws: warp::ws::Ws, clients| {
+                .map(|ws: warp::ws::Ws, addr: Option<SocketAddr>, clients| {
                     ws.max_message_size(256 * 1024 * 1024)
                       .max_frame_size(256 * 1024 * 1024)
-                      .on_upgrade(move |socket| client_connection(socket, clients))
+                      .on_upgrade(move |socket| client_connection(socket, clients, addr))
                 });
             
             std::thread::spawn(move || {

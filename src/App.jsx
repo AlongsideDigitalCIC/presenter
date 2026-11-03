@@ -809,6 +809,10 @@ function App() {
             } catch (err) {
               console.error("Failed to register master token:", err);
             }
+          } else {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'master_register', local: true }));
+            }
           }
         };
         
