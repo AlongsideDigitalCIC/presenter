@@ -165,7 +165,8 @@ export default function SettingsView({
   ccliSettings = {},
   onUpdateCcliSettings,
   overlaySettings = {},
-  onUpdateOverlaySettings
+  onUpdateOverlaySettings,
+  onOpenSongImport
 }) {
   const [activeSettingsTab, setActiveSettingsTab] = useState('display');
   const [bgCategory, setBgCategory] = useState('song'); // 'song' | 'bible' | 'liturgy'
@@ -1620,25 +1621,37 @@ export default function SettingsView({
                 </div>
               </div>
 
-              {/* Storage Settings Card */}
+              {/* Storage & Library Migration Card */}
               <div className="bg-white border border-[#E4E1DA] rounded-2xl p-6 flex flex-col gap-4 shadow-sm">
                 <div className="text-xs font-bold text-[#3D7B8C] uppercase tracking-widest flex items-center gap-2 mb-2">
-                   <Database size={16} /> Storage Settings
+                   <Database size={16} /> Storage &amp; Song Migration
                 </div>
                 
-                <div className="flex flex-col gap-2 h-full justify-between">
+                <div className="flex flex-col gap-3 h-full justify-between">
                     <div>
-                      <label className="text-[10px] font-black text-[#1C355E] uppercase tracking-widest">Media Library Location</label>
+                      <label className="text-[10px] font-black text-[#1C355E] uppercase tracking-widest">Media Library &amp; Song Import</label>
                       <p className="text-[10px] text-[#526075] mt-1 leading-relaxed">
-                         Click this to select a new base folder for your Presenter library. This will reload the application.
+                         Change your base Presenter storage folder or import an existing song database from ProPresenter, FreeShow, OpenLP, Quelea, WorshipTools, EasyWorship, OpenSong, or CCLI SongSelect.
                       </p>
                     </div>
-                    <button 
-                       onClick={onChangeLibrary}
-                       className="w-full bg-[#FAF6F0] hover:bg-[#F0EBE1] active:bg-[#E4E1DA] border border-[#E4E1DA] text-[#1C355E] font-bold py-3 rounded-xl transition text-sm flex items-center justify-center gap-2 mt-4"
-                    >
-                       Change Media Library Folder
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2.5 mt-2">
+                      {onOpenSongImport && (
+                        <button
+                           type="button"
+                           onClick={onOpenSongImport}
+                           className="flex-1 bg-[#7A502A] hover:bg-[#654121] text-white font-bold py-3 px-4 rounded-xl transition text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                        >
+                           <Upload size={15} /> Import Song Library
+                        </button>
+                      )}
+                      <button 
+                         type="button"
+                         onClick={onChangeLibrary}
+                         className="flex-1 bg-[#FAF6F0] hover:bg-[#F0EBE1] active:bg-[#E4E1DA] border border-[#E4E1DA] text-[#1C355E] font-bold py-3 px-4 rounded-xl transition text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                         Change Library Folder
+                      </button>
+                    </div>
                 </div>
               </div>
 

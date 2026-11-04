@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Sparkles, Search, Plus, Trash2 } from 'lucide-react';
+import { parseImportFiles, SUPPORTED_SONG_IMPORT_ACCEPT } from '../utils/importers';
+import { sanitizeSongFilename } from '../utils/importers/sectionNormalizer';
 
 const SHORTCUT_LABELS = [
   ...Array.from({ length: 10 }, (_, i) => ({ key: `v${i + 1}`, label: `Verse ${i + 1}`, replace: `[Verse ${i + 1}]\n` })),
@@ -17,7 +19,7 @@ const SHORTCUT_LABELS = [
   { key: 'ins', label: 'Instrumental', replace: '[Instrumental]\n' },
 ];
 
-export default function SongEditor({ libraryHandle, onSaved, initialData }) {
+export default function SongEditor({ libraryHandle, onSaved, onRefresh, initialData }) {
   const initialMeta = (() => {
     if (!initialData?.rawText) return {};
     const match = initialData.rawText.match(/^---\n([\s\S]*?)\n---/);
@@ -34,6 +36,19 @@ export default function SongEditor({ libraryHandle, onSaved, initialData }) {
   const [artist, setArtist] = useState(initialData?.artist || initialMeta.artist || initialMeta.author || '');
   const [ccli, setCcli] = useState(initialData?.ccli || initialMeta.ccli || '');
   const [copyright, setCopyright] = useState(initialData?.copyright || initialMeta.copyright || '');
+  const [arrangement, setArrangement] = useState(() => {
+    if (Array.isArray(initialData?.arrangement) && initialData.arrangement.length > 0) {
+      return initialData.arrangement;
+    }
+    if (initialMeta.arrangement) {
+      return initialMeta.arrangement
+        .replace(/^\[|\]$/g, '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+    return null;
+  });
   const [lyrics, setLyrics] = useState(() => {
     if (!initialData?.rawText) return '';
     return initialData.rawText.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
@@ -253,39 +268,29 @@ export default function SongEditor({ libraryHandle, onSaved, initialData }) {
     }
   };
 
-  const handleFileImport = (e) => {
-    const file = e.target.files[0];
+  const handleFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target.result;
-      if (file.name.endsWith('.xml')) {
-        try {
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(content, 'text/xml');
-          
-          setTitle(xmlDoc.querySelector('properties titles title')?.textContent || '');
-          setArtist(xmlDoc.querySelector('properties authors author')?.textContent || '');
-          
-          const verses = xmlDoc.querySelectorAll('lyrics verse');
-          const parsedLyrics = Array.from(verses).map(v => {
-            const name = v.getAttribute('name') || 'Verse';
-            const lines = Array.from(v.querySelectorAll('lines')).map(l => l.textContent).join('\n');
-            return `[${name.toUpperCase()}]\n${lines}`;
-          }).join('\n\n');
-          
-          setLyrics(parsedLyrics);
-        } catch {
-          alert("Failed to parse OpenLyrics XML");
-        }
-      } else {
-        applyLyricsText(content);
+    try {
+      const { songs } = await parseImportFiles([file], { stripChords: true });
+      if (songs && songs.length > 0) {
+        const first = songs[0];
+        if (first.title) setTitle(first.title);
+        if (first.artist) setArtist(first.artist);
+        if (first.ccli) setCcli(first.ccli);
+        if (first.copyright) setCopyright(first.copyright);
+        if (first.arrangement) setArrangement(first.arrangement);
+        const body = first.markdown.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+        setLyrics(body);
+        return;
       }
-    };
-    reader.readAsText(file);
-    // Reset target so same file can be imported twice
-    e.target.value = null;
+      const fallbackText = await file.text();
+      applyLyricsText(fallbackText);
+    } catch (err) {
+      alert('Failed to import song file: ' + err.message);
+    }
   };
 
 
@@ -293,18 +298,22 @@ export default function SongEditor({ libraryHandle, onSaved, initialData }) {
   const handleSave = async () => {
     if (!title.trim()) return alert("Song Title is required");
     
-    const md = `---
-Title: ${title}
-Artist: ${artist}
-CCLI: ${ccli}
-Copyright: ${copyright}
----
+    const fmLines = [
+      '---',
+      `Title: ${title.trim()}`,
+      `Artist: ${artist.trim()}`,
+      `CCLI: ${ccli.trim()}`,
+      `Copyright: ${copyright.trim()}`
+    ];
+    if (Array.isArray(arrangement) && arrangement.length > 0) {
+      fmLines.push(`Arrangement: [${arrangement.join(', ')}]`);
+    }
+    fmLines.push('---');
 
-${lyrics}
-`;
+    const md = `${fmLines.join('\n')}\n\n${lyrics}\n`;
     try {
       const songsFolder = await libraryHandle.getDirectoryHandle('Songs', { create: true });
-      const safeTitle = title.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+      const safeTitle = sanitizeSongFilename(title);
       const filename = initialData?.id?.endsWith('.md') ? initialData.id : `${safeTitle}.md`;
       
       const fileHandle = await songsFolder.getFileHandle(filename, { create: true });
@@ -312,6 +321,7 @@ ${lyrics}
       await writable.write(md);
       await writable.close();
       
+      if (onRefresh) onRefresh();
       onSaved();
     } catch (err) {
        alert("Failed to save song: " + err.message);
@@ -347,7 +357,7 @@ ${lyrics}
             <label className="text-[10px] bg-white text-[#1C355E] border border-[#E4E1DA] hover:bg-[#F0EBE1] px-4 py-2 rounded-xl font-bold uppercase tracking-widest transition-colors cursor-pointer flex items-center gap-2 shadow-sm">
                 <Plus size={14} className="text-[#3D7B8C]" />
                 Import File
-                <input type="file" accept=".txt,.xml" className="hidden" onChange={handleFileImport} />
+                <input type="file" accept={SUPPORTED_SONG_IMPORT_ACCEPT} className="hidden" onChange={handleFileImport} />
             </label>
 
            <button 

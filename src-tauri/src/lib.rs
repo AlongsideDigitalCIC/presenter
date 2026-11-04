@@ -193,6 +193,364 @@ async fn close_projector_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DetectedChurchApp {
+    id: String,
+    name: String,
+    description: String,
+    display_path: String,
+    item_count: usize,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DetectedAppFile {
+    name: String,
+    path: String,
+    base64: String,
+}
+
+fn encode_base64(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(((bytes.len() + 2) / 3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let n = (b0 << 16) | (b1 << 8) | b2;
+
+        out.push(TABLE[((n >> 18) & 0x3f) as usize] as char);
+        out.push(TABLE[((n >> 12) & 0x3f) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[((n >> 6) & 0x3f) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(n & 0x3f) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
+fn collect_matching_files(
+    dir: &std::path::Path,
+    allowed_exts: Option<&[&str]>,
+    allow_extensionless: bool,
+    max_depth: usize,
+    out: &mut Vec<std::path::PathBuf>,
+) {
+    if max_depth == 0 || out.len() >= 5000 || !dir.is_dir() {
+        return;
+    }
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        if out.len() >= 5000 {
+            break;
+        }
+        let path = entry.path();
+        let file_name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n,
+            None => continue,
+        };
+        if file_name.starts_with('.')
+            || file_name.eq_ignore_ascii_case("desktop.ini")
+            || file_name.eq_ignore_ascii_case("thumbs.db")
+            || file_name.eq_ignore_ascii_case("globals")
+        {
+            continue;
+        }
+        if path.is_dir() {
+            collect_matching_files(&path, allowed_exts, allow_extensionless, max_depth - 1, out);
+        } else if path.is_file() {
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| s.to_ascii_lowercase());
+            match (ext.as_deref(), allowed_exts) {
+                (Some(e), Some(exts)) => {
+                    if exts.iter().any(|allowed| *allowed == e) {
+                        out.push(path);
+                    }
+                }
+                (None, _) if allow_extensionless => {
+                    out.push(path);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn find_easyworship_data_dir(base: &std::path::Path, max_depth: usize) -> Option<std::path::PathBuf> {
+    if max_depth == 0 || !base.is_dir() {
+        return None;
+    }
+    let words_candidate = base.join("SongWords.db");
+    if words_candidate.is_file() {
+        return Some(base.to_path_buf());
+    }
+    let entries = std::fs::read_dir(base).ok()?;
+    let mut best: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() {
+            if let Some(found) = find_easyworship_data_dir(&p, max_depth - 1) {
+                let mtime = std::fs::metadata(found.join("SongWords.db"))
+                    .and_then(|m| m.modified())
+                    .unwrap_or(std::time::UNIX_EPOCH);
+                if best.as_ref().map(|(t, _)| mtime > *t).unwrap_or(true) {
+                    best = Some((mtime, found));
+                }
+            }
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
+fn resolve_detected_sources(app: &tauri::AppHandle) -> Vec<(DetectedChurchApp, Vec<std::path::PathBuf>)> {
+    let mut results = Vec::new();
+    let doc_dir = app.path().document_dir().ok();
+    let data_dir = app.path().data_dir().ok();
+    let public_docs = std::path::PathBuf::from("C:\\Users\\Public\\Documents");
+
+    // 1. ProPresenter 7
+    if let Some(ref docs) = doc_dir {
+        let pp7_dir = docs.join("ProPresenter").join("Libraries");
+        let mut files = Vec::new();
+        collect_matching_files(&pp7_dir, Some(&["pro"]), false, 4, &mut files);
+        if !files.is_empty() {
+            results.push((
+                DetectedChurchApp {
+                    id: "propresenter7".to_string(),
+                    name: "ProPresenter 7".to_string(),
+                    description: format!("{} presentation files found in Libraries", files.len()),
+                    display_path: pp7_dir.to_string_lossy().into_owned(),
+                    item_count: files.len(),
+                },
+                files,
+            ));
+        }
+    }
+
+    // 2. ProPresenter 6
+    {
+        let mut pp6_candidates = Vec::new();
+        if let Some(ref data) = data_dir {
+            pp6_candidates.push(data.join("RenewedVision").join("ProPresenter6").join("Library"));
+            pp6_candidates.push(data.join("RenewedVision").join("ProPresenter6"));
+        }
+        if let Some(ref docs) = doc_dir {
+            pp6_candidates.push(docs.join("ProPresenter6"));
+        }
+        for cand in pp6_candidates {
+            let mut files = Vec::new();
+            collect_matching_files(&cand, Some(&["pro6", "pro5", "pro4"]), false, 3, &mut files);
+            if !files.is_empty() {
+                results.push((
+                    DetectedChurchApp {
+                        id: "propresenter6".to_string(),
+                        name: "ProPresenter 6".to_string(),
+                        description: format!("{} song files found in Library", files.len()),
+                        display_path: cand.to_string_lossy().into_owned(),
+                        item_count: files.len(),
+                    },
+                    files,
+                ));
+                break;
+            }
+        }
+    }
+
+    // 3. FreeShow
+    if let Some(ref docs) = doc_dir {
+        let fs_dir = docs.join("FreeShow").join("Shows");
+        let mut files = Vec::new();
+        collect_matching_files(&fs_dir, Some(&["show", "json"]), false, 3, &mut files);
+        if !files.is_empty() {
+            results.push((
+                DetectedChurchApp {
+                    id: "freeshow".to_string(),
+                    name: "FreeShow".to_string(),
+                    description: format!("{} show files found in Shows folder", files.len()),
+                    display_path: fs_dir.to_string_lossy().into_owned(),
+                    item_count: files.len(),
+                },
+                files,
+            ));
+        }
+    }
+
+    // 4. OpenLP
+    if let Some(ref data) = data_dir {
+        let olp_candidates = [
+            data.join("openlp").join("data").join("songs").join("songs.sqlite"),
+            data.join("openlp").join("Data").join("songs").join("songs.sqlite"),
+        ];
+        for db_path in olp_candidates {
+            if db_path.is_file() {
+                results.push((
+                    DetectedChurchApp {
+                        id: "openlp".to_string(),
+                        name: "OpenLP".to_string(),
+                        description: "Local OpenLP songs.sqlite database".to_string(),
+                        display_path: db_path.to_string_lossy().into_owned(),
+                        item_count: 1,
+                    },
+                    vec![db_path],
+                ));
+                break;
+            }
+        }
+    }
+
+    // 5. EasyWorship 6 / 7
+    {
+        let mut ew_roots = vec![public_docs.join("Softouch").join("Easyworship")];
+        if let Some(ref docs) = doc_dir {
+            ew_roots.push(docs.join("Softouch").join("Easyworship"));
+        }
+        for root in ew_roots {
+            if let Some(data_folder) = find_easyworship_data_dir(&root, 6) {
+                let mut db_files = Vec::new();
+                let songs_db = data_folder.join("Songs.db");
+                let words_db = data_folder.join("SongWords.db");
+                if songs_db.is_file() {
+                    db_files.push(songs_db);
+                }
+                if words_db.is_file() {
+                    db_files.push(words_db);
+                }
+                if !db_files.is_empty() {
+                    results.push((
+                        DetectedChurchApp {
+                            id: "easyworship".to_string(),
+                            name: "EasyWorship".to_string(),
+                            description: "Local EasyWorship song database".to_string(),
+                            display_path: data_folder.to_string_lossy().into_owned(),
+                            item_count: db_files.len(),
+                        },
+                        db_files,
+                    ));
+                    break;
+                }
+            }
+        }
+    }
+
+    // 6. OpenSong
+    if let Some(ref docs) = doc_dir {
+        let os_dir = docs.join("OpenSong").join("Songs");
+        let mut files = Vec::new();
+        collect_matching_files(&os_dir, Some(&["xml"]), true, 3, &mut files);
+        if !files.is_empty() {
+            results.push((
+                DetectedChurchApp {
+                    id: "opensong".to_string(),
+                    name: "OpenSong".to_string(),
+                    description: format!("{} songs found in OpenSong/Songs", files.len()),
+                    display_path: os_dir.to_string_lossy().into_owned(),
+                    item_count: files.len(),
+                },
+                files,
+            ));
+        }
+    }
+
+    // 7. VideoPsalm
+    {
+        let mut vp_roots = vec![public_docs.join("VideoPsalm").join("SongBooks")];
+        if let Some(ref docs) = doc_dir {
+            vp_roots.push(docs.join("VideoPsalm").join("SongBooks"));
+        }
+        for root in vp_roots {
+            let mut files = Vec::new();
+            collect_matching_files(&root, Some(&["vpc"]), false, 3, &mut files);
+            if !files.is_empty() {
+                results.push((
+                    DetectedChurchApp {
+                        id: "videopsalm".to_string(),
+                        name: "VideoPsalm".to_string(),
+                        description: format!("{} songbook(s) found", files.len()),
+                        display_path: root.to_string_lossy().into_owned(),
+                        item_count: files.len(),
+                    },
+                    files,
+                ));
+                break;
+            }
+        }
+    }
+
+    // 8. SongBeamer
+    if let Some(ref docs) = doc_dir {
+        let sb_dir = docs.join("SongBeamer").join("Songs");
+        let mut files = Vec::new();
+        collect_matching_files(&sb_dir, Some(&["sng"]), false, 3, &mut files);
+        if !files.is_empty() {
+            results.push((
+                DetectedChurchApp {
+                    id: "songbeamer".to_string(),
+                    name: "SongBeamer".to_string(),
+                    description: format!("{} .sng songs found", files.len()),
+                    display_path: sb_dir.to_string_lossy().into_owned(),
+                    item_count: files.len(),
+                },
+                files,
+            ));
+        }
+    }
+
+    results
+}
+
+#[tauri::command]
+fn detect_installed_church_apps(app: tauri::AppHandle) -> Result<Vec<DetectedChurchApp>, String> {
+    let sources = resolve_detected_sources(&app);
+    Ok(sources.into_iter().map(|(meta, _)| meta).collect())
+}
+
+#[tauri::command]
+async fn read_detected_church_app_files(
+    app: tauri::AppHandle,
+    source_id: String,
+) -> Result<Vec<DetectedAppFile>, String> {
+    let sources = resolve_detected_sources(&app);
+    let (_, paths) = sources
+        .into_iter()
+        .find(|(meta, _)| meta.id == source_id)
+        .ok_or_else(|| format!("Detected source '{}' is no longer available", source_id))?;
+
+    let mut out = Vec::with_capacity(paths.len());
+    for p in paths {
+        // Skip oversized files (> 64 MB) to protect memory
+        if let Ok(meta) = std::fs::metadata(&p) {
+            if meta.len() > 64 * 1024 * 1024 {
+                continue;
+            }
+        }
+        if let Ok(bytes) = std::fs::read(&p) {
+            let name = p
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Song")
+                .to_string();
+            out.push(DetectedAppFile {
+                name,
+                path: p.to_string_lossy().into_owned(),
+                base64: encode_base64(&bytes),
+            });
+        }
+    }
+    Ok(out)
+}
+
 
 async fn client_connection(ws: WebSocket, clients: Clients, addr: Option<SocketAddr>) {
     let (mut client_ws_sender, mut client_ws_rcv) = ws.split();
@@ -355,7 +713,9 @@ pub fn run() {
             get_master_token,
             allow_library_folder,
             open_projector_window,
-            close_projector_window
+            close_projector_window,
+            detect_installed_church_apps,
+            read_detected_church_app_files
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

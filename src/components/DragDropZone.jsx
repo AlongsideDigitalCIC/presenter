@@ -1,20 +1,30 @@
 import { useState, useCallback, useEffect } from 'react';
 import { UploadCloud, Presentation, Loader2 } from 'lucide-react';
 
-export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
+const CHURCH_SONG_IMPORT_EXTS = new Set([
+  'pro', 'pro4', 'pro5', 'pro6', 'pro6x', 'probundle',
+  'show', 'shows', 'project', 'fsb',
+  'qsp', 'sqlite', 'sqlite3', 'db', 'spb',
+  'vpc', 'usr', 'cho', 'crd', 'chopro', 'chordpro', 'onsong',
+  'sng', 'xml'
+]);
+
+export default function DragDropZone({ libraryHandle, onFileAdded, onDropSongFiles, disabled = false, children }) {
   const [isDragging, setIsDragging] = useState(false);
   const [_dragCounter, setDragCounter] = useState(0);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractStatus, setExtractStatus] = useState('');
 
   const handleDragEnter = useCallback((e) => {
+    if (disabled) return;
     if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
     setDragCounter(prev => prev + 1);
     setIsDragging(true);
-  }, []);
+  }, [disabled]);
 
   const handleDragLeave = useCallback((e) => {
+    if (disabled) return;
     if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
     setDragCounter(prev => {
@@ -22,12 +32,13 @@ export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
       if (newCounter === 0) setIsDragging(false);
       return newCounter;
     });
-  }, []);
+  }, [disabled]);
 
   const handleDragOver = useCallback((e) => {
+    if (disabled) return;
     if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
-  }, []);
+  }, [disabled]);
 
   const copyDir = async (srcEntry, destHandle) => {
       const reader = srcEntry.createReader();
@@ -61,6 +72,7 @@ export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
   };
 
   const handleDrop = useCallback(async (e) => {
+    if (disabled) return;
     if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
     setDragCounter(0);
@@ -69,6 +81,7 @@ export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
     if (!libraryHandle) return;
     
     const items = [...e.dataTransfer.items];
+    const songImportCandidates = [];
     
     for (const item of items) {
       if (item.kind === 'file') {
@@ -88,7 +101,13 @@ export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
              const file = item.getAsFile();
              if (!file) continue;
              
-             const ext = file.name.split('.').pop().toLowerCase();
+             const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+
+             // Route external church presentation song files directly to Universal Song Importer
+             if (onDropSongFiles && CHURCH_SONG_IMPORT_EXTS.has(ext)) {
+               songImportCandidates.push(file);
+               continue;
+             }
 
              // Special Handler for PowerPoint Presentations (.pptx)
              if (ext === 'pptx') {
@@ -141,10 +160,14 @@ export default function DragDropZone({ libraryHandle, onFileAdded, children }) {
          }
       }
     }
+
+    if (songImportCandidates.length > 0 && onDropSongFiles) {
+      onDropSongFiles(songImportCandidates);
+    }
     
     // Also trigger onFileAdded for folders
     if (onFileAdded) onFileAdded();
-  }, [libraryHandle, onFileAdded]);
+  }, [disabled, libraryHandle, onFileAdded, onDropSongFiles]);
 
   useEffect(() => {
     window.addEventListener('dragenter', handleDragEnter);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Layers, File, Music, Image as ImgIcon, Video, FileText, CheckCircle, Check, Trash2, Sparkles, Settings, BookOpen, Headphones, Presentation } from 'lucide-react';
+import { Search, Plus, Layers, File, Music, Image as ImgIcon, Video, FileText, CheckCircle, Check, Trash2, Sparkles, Settings, BookOpen, Headphones, Presentation, Upload } from 'lucide-react';
 import BibleModule from './BibleModule';
 import ServiceFlow from './ServiceFlow';
 import { processBibleJson } from '../services/bibleService';
@@ -18,7 +18,7 @@ export default function Sidebar({
   serviceItems, 
   onServiceReorder, 
   onSelectItem,
-  onNewSong,
+  onNewSong, onOpenSongImport,
   onRemoveServiceItem,
   onUpdateServiceItem,
   onSaveService,
@@ -571,9 +571,21 @@ export default function Sidebar({
                 <div className="text-xs font-bold text-[#526075] uppercase tracking-widest flex items-center gap-2">
                     <Music size={14} className="text-[#3D7B8C]" /> Songs Library
                 </div>
-                <button onClick={onNewSong} className="text-[10px] bg-[#7A502A] hover:bg-[#654121] text-white shadow-sm px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider transition-colors cursor-pointer">
-                    + New
-                </button>
+                <div className="flex items-center gap-1.5">
+                    {onOpenSongImport && (
+                        <button
+                            type="button"
+                            onClick={onOpenSongImport}
+                            title="Import songs from ProPresenter, FreeShow, OpenLP, Quelea, WorshipTools & more"
+                            className="text-[10px] bg-white hover:bg-[#EDF4F6] text-[#1C355E] hover:text-[#3D7B8C] border border-[#E4E1DA] hover:border-[#3D7B8C]/40 shadow-sm px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                            <Upload size={11} className="text-[#3D7B8C]" /> Import
+                        </button>
+                    )}
+                    <button onClick={onNewSong} className="text-[10px] bg-[#7A502A] hover:bg-[#654121] text-white shadow-sm px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                        + New
+                    </button>
+                </div>
             </div>
             
             <div className="relative mt-1">
@@ -590,6 +602,23 @@ export default function Sidebar({
 
 
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mt-1 border-t border-[#E4E1DA] pt-4 px-1">
+                {!localQuery.trim() && (searchState.allItems || []).length === 0 && (
+                    <div className="text-center bg-white rounded-2xl border border-[#E4E1DA] border-dashed mt-2 p-5 flex flex-col items-center gap-3">
+                        <div className="text-xs font-bold text-[#1C355E]">Your Song Library is empty</div>
+                        <p className="text-[11px] text-[#526075] leading-relaxed">
+                            Migrate your songs from ProPresenter, FreeShow, OpenLP, Quelea, WorshipTools, EasyWorship, or SongSelect in seconds.
+                        </p>
+                        {onOpenSongImport && (
+                            <button
+                                type="button"
+                                onClick={onOpenSongImport}
+                                className="w-full py-2.5 px-3 bg-[#EDF4F6] hover:bg-[#3D7B8C] text-[#1C355E] hover:text-white border border-[#3D7B8C]/30 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <Upload size={13} /> Import Song Database
+                            </button>
+                        )}
+                    </div>
+                )}
                 {(localQuery.trim() ? searchState.results : (searchState.allItems || [])).map(res => {
                     const isInService = checkInService(res.id) || checkInService(res.title);
                     const isSelected = selectedItem?.id === res.id;

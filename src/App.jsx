@@ -11,6 +11,7 @@ import LiveControl from './components/LiveControl'
 import DragDropZone from './components/DragDropZone'
 import ImageArrayViewer from './components/ImageArrayViewer'
 import SongEditor from './components/SongEditor'
+import SongImportModal from './components/SongImportModal'
 import LiturgyEditor from './components/LiturgyEditor'
 import Logo from './components/Logo'
 import { useFileSystemWatcher } from './hooks/useFileSystemWatcher'
@@ -193,6 +194,8 @@ function App() {
   const [playbackStatus, setPlaybackStatus] = useState({ time: 0, duration: 0, paused: undefined });
   const [churchName, setChurchName] = useState("Alongside Digital - Presenter");
   const [displayFont, setDisplayFont] = useState("Inter");
+  const [isSongImportOpen, setIsSongImportOpen] = useState(false);
+  const [pendingImportFiles, setPendingImportFiles] = useState(null);
 
   // Screen Overlays State (Ad Hoc Announcements & Countdown Timer)
   const [announcement, setAnnouncement] = useState({
@@ -2169,7 +2172,15 @@ function App() {
   }
 
   return (
-    <DragDropZone libraryHandle={libraryHandle} onFileAdded={refreshLibrary}>
+    <DragDropZone
+      libraryHandle={libraryHandle}
+      onFileAdded={refreshLibrary}
+      disabled={isSongImportOpen}
+      onDropSongFiles={(files) => {
+        setPendingImportFiles(files);
+        setIsSongImportOpen(true);
+      }}
+    >
       <div className="h-screen bg-[#FAF6F0] text-[#1C355E] flex flex-col overflow-hidden font-sans selection:bg-[#3D7B8C]/20">
           
           {/* TOP NAVIGATION BAR */}
@@ -2234,6 +2245,10 @@ function App() {
                  onDeleteItem={handleDeleteItem}
                  onAddToService={handleAddToService}
                  onNewSong={() => handleSelectItem({ type: 'new_song' })}
+                 onOpenSongImport={() => {
+                   setPendingImportFiles(null);
+                   setIsSongImportOpen(true);
+                 }}
                  onRemoveServiceItem={handleRemoveServiceItem}
                  onUpdateServiceItem={handleUpdateServiceItem}
                  onSaveService={handleSaveService}
@@ -2306,6 +2321,7 @@ function App() {
                  <SongEditor 
                    libraryHandle={libraryHandle} 
                    initialData={editingSong}
+                   onRefresh={refreshLibrary}
                    onSaved={() => {
                      setSelectedItem(null);
                      setEditingSong(null);
@@ -2616,9 +2632,29 @@ function App() {
               onChangeLibrary={() => {
                   handleChangeLibraryPath(); setIsSettingsOpen(false);
               }}
+              onOpenSongImport={() => {
+                  setIsSettingsOpen(false);
+                  setPendingImportFiles(null);
+                  setIsSongImportOpen(true);
+              }}
               onClose={() => setIsSettingsOpen(false)}
             />
           )}
+
+          <SongImportModal
+            isOpen={isSongImportOpen}
+            onClose={() => {
+              setIsSongImportOpen(false);
+              setPendingImportFiles(null);
+            }}
+            libraryHandle={libraryHandle}
+            existingSongs={searchState?.allItems || []}
+            initialFiles={pendingImportFiles}
+            onImported={() => {
+              refreshLibrary();
+              setActiveTab('Songs');
+            }}
+          />
 
          <ConfirmModal 
              isOpen={showClearConfirm}
