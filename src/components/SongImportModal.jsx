@@ -15,7 +15,7 @@ import {
   FileArchive,
   ExternalLink
 } from 'lucide-react';
-import { isTauri } from '../utils/env';
+import { isTauri, openExternalUrl } from '../utils/env';
 import {
   parseImportFiles,
   writeImportedSongsToLibrary,
@@ -611,8 +611,12 @@ export default function SongImportModal({
                   href={IMPORT_DOCS_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3D7B8C] hover:text-[#1C355E] hover:underline transition-colors mt-1"
+                  onClick={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openExternalUrl(IMPORT_DOCS_URL);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3D7B8C] hover:text-[#1C355E] hover:underline transition-colors mt-1 cursor-pointer"
                 >
                   View supported software &amp; step-by-step import guide <ExternalLink size={13} />
                 </a>

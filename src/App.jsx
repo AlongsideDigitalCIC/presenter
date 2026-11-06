@@ -1,4 +1,4 @@
-import { isTauri } from './utils/env.js';
+import { isTauri, openExternalUrl } from './utils/env.js';
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ExternalLink, Check, Settings, Plus } from 'lucide-react'
 import FileSystemSetup from './components/FileSystemSetup'
@@ -2385,7 +2385,11 @@ function App() {
                                href={selectedItem.url} 
                                target="_blank" 
                                rel="noopener noreferrer" 
-                               className="flex items-center gap-1.5 h-10 px-4 py-2 bg-white hover:bg-[#F0EBE1] text-[#1C355E] rounded-xl border border-[#E4E1DA] transition-colors font-bold text-xs uppercase tracking-widest shadow-sm"
+                               onClick={e => {
+                                 e.preventDefault();
+                                 openExternalUrl(selectedItem.url);
+                               }}
+                               className="flex items-center gap-1.5 h-10 px-4 py-2 bg-white hover:bg-[#F0EBE1] text-[#1C355E] rounded-xl border border-[#E4E1DA] transition-colors font-bold text-xs uppercase tracking-widest shadow-sm cursor-pointer"
                              >
                                <ExternalLink size={14} className="text-[#3D7B8C]" /> Open Source
                              </a>
